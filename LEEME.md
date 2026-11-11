@@ -12,7 +12,7 @@ Necesitas:
 
 1. Entra en https://github.com y crea una cuenta si no tienes.
 2. Pulsa **New repository**. Nombre: `zancada`. Márcalo como **Public** y pulsa **Create repository**.
-3. En el repositorio vacío, pulsa **uploading an existing file**. Arrastra **todo el contenido** de esta carpeta (`index.html`, `manifest.webmanifest`, `sw.js`, `robots.txt` y los tres iconos `.png`). Pulsa **Commit changes**.
+3. En el repositorio vacío, pulsa **uploading an existing file**. Arrastra **todo el contenido** de esta carpeta (`index.html`, `manifest.webmanifest`, `sw.js`, `robots.txt` y los cinco iconos `.png`). Pulsa **Commit changes**.
 4. Ve a **Settings › Pages**. En *Source* elige **Deploy from a branch**, rama `main`, carpeta `/ (root)`, y pulsa **Save**.
 5. En uno o dos minutos la app estará en:
    `https://TU-USUARIO.github.io/zancada/`
@@ -78,6 +78,7 @@ Algunos navegadores bloquean que una página hable directamente con Strava (es u
 - **Mejores marcas:** puedes poner tus marcas de 5 km, 10 km, media y maratón con su antigüedad. Con Strava, la app busca además tus mejores esfuerzos (1 km, 1 milla, 5 km, 10 km, media, maratón) en el último año. La forma de partida sale de la marca que mejor te representa hoy: las antiguas cuentan menos.
 - **Desnivel:** eliges el perfil de la carrera (llana, ondulada, con cuestas, de montaña). Ajusta la predicción y la marca objetivo, y mete cuestas en las fases fuertes si la carrera las tiene. El análisis usa el ritmo ajustado por pendiente de Strava.
 - **Añadir entreno:** desde Hoy o Progreso puedes registrar a mano cualquier carrera (fecha, tipo, distancia, tiempo, desnivel, pulso, esfuerzo). Si ese día había sesión, cuenta como hecha. Las competiciones actualizan tus marcas y tus ritmos. Cualquier registro se puede borrar.
+- **Zonas y ritmos que se recalculan solos:** el umbral de pulso se mide en tus tempos, tests y carreras con pulsómetro, y de ahí salen tus zonas. Los ritmos se ajustan con tests, carreras, series y con la relación entre tu pulso y tu ritmo en los rodajes. Los cambios son graduales y se explican en la app.
 - **Tiempo disponible:** si indicas un máximo para los días entre semana, las sesiones se acortan para caber en él.
 
 ## 6. Datos y copias de seguridad

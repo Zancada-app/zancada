@@ -178,7 +178,6 @@ a.btn{display:inline-flex;align-items:center;justify-content:center}
 .toast .tbtn{background:transparent;border:0;color:var(--accent);font-weight:700;min-height:36px;padding:4px 6px;flex:none}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
 @keyframes toastOut{to{opacity:0;transform:translate(-50%,12px)}}
-html.locked,html.locked body{overflow:hidden}
 button,a,select,.item,.ocard,.dayb{touch-action:manipulation}
 button,.btn,.item,.ocard,.dayb{transition:transform .12s ease,background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease}
 button:active:not(:disabled),.btn:active,.item:active{transform:scale(.975)}
@@ -462,7 +461,14 @@ function buildWeek(i){
 /* ---------- descripción de cada sesión con ritmos actuales ---------- */
 /* ---------- Zonas de pulso ---------- */
 const HR_Z=[{n:1,name:'Recuperación',lo:0,hi:0.70},{n:2,name:'Suave',lo:0.70,hi:0.80},{n:3,name:'Moderado',lo:0.80,hi:0.87},{n:4,name:'Umbral',lo:0.87,hi:0.93},{n:5,name:'Máximo',lo:0.93,hi:1}];
+const LT_Z=[[0,0.85],[0.85,0.90],[0.90,0.95],[0.95,1.00],[1.00,null]]; // zonas de Friel sobre el umbral
+function hrSource(){
+  if(state.hrm&&state.hrm.lthr) return 'lthr';
+  if(state.strava&&state.strava.hrZones) return 'strava';
+  return hrMaxNow()?'max':null;
+}
 function hrBounds(n){ // [mín, máx] en ppm de la zona n (1–5)
+  if(hrSource()==='lthr'){const L=state.hrm.lthr,z=LT_Z[n-1];return [Math.round(z[0]*L),z[1]?Math.round(z[1]*L):null];}
   const cz=state.strava&&state.strava.hrZones;
   if(cz) return [cz[n-1].min||0,cz[n-1].max>0?cz[n-1].max:null];
   const hm=hrMaxNow();if(!hm) return null;
@@ -617,6 +623,97 @@ function blocksHTML(d){
     return `<li class="blk ${b.k}"><div class="row between" style="align-items:baseline"><span class="bt">${esc(b.t)}</span><span class="bv num">${b.reps>1?`${b.reps} × `:''}${len}</span></div>
       <div class="bm num">${b.lo?`<span>${paceR(b.lo,b.hi)} /km</span>`:''}${b.z?`<span>${hrText(b.z[0],b.z[1])}</span>`:''}${b.rec?`<span>rec. ${esc(b.rec)}</span>`:''}</div>
       ${b.text?`<div class="small muted">${esc(b.text)}</div>`:''}</li>`;}).join('')}</ol>`;
+}
+
+/* =========================================================
+   Pulso medido: umbral (LTHR), FC máxima y ritmos desde la relación pulso–ritmo
+   ========================================================= */
+// FC máxima observada sin picos falsos: si la más alta supera en más de 6 ppm a la siguiente, se descarta
+function robustMax(vals){
+  const v=vals.filter(x=>x>120&&x<225).sort((a,b)=>b-a);
+  if(!v.length) return null;
+  return v.length>1&&v[0]-v[1]>6?v[1]:v[0];
+}
+// Fuentes para estimar el umbral de pulso (Friel): esfuerzos sostenidos con pulso registrado
+function lthrCandidates(){
+  const out=[],from=addDays(today(),-120);
+  const factor=min=>min<14?null:min<35?1.04:min<70?1.01:min<140?0.97:0.92; // pulso medio de carrera respecto al umbral
+  const runs=state.strava?state.strava.runs:[];
+  runs.filter(r=>r.date>=from&&r.hr).forEach(r=>{
+    const ses=r.sessionId?state.sessions.find(x=>x.id===r.sessionId):null;
+    const t=ses?ses.type:null,min=r.sec/60;
+    if(r.race||t==='race'){
+      const f=factor(min);if(f) out.push({v:r.hr/f,date:r.date,label:'carrera'});
+    }else if(t==='test'){
+      // solo los km rápidos del test: el pulso medio de un 5 km a tope ronda el 103 % del umbral
+      const segs=(r.laps.length>=3?r.laps:r.splits).filter(x=>x.hr),avg=r.sec/r.km,w=segs.filter(x=>x.sec/x.km<avg*0.97);
+      const ws=w.reduce((a,x)=>a+x.sec,0);if(ws>=14*60) out.push({v:w.reduce((a,x)=>a+x.hr*x.sec,0)/ws/1.03,date:r.date,label:'test de 5 km'});
+    }else if(t==='tempo'||t==='ritmo'){
+      // segunda mitad de la parte rápida: el pulso ya se ha estabilizado en el umbral
+      const segs=(r.laps.length>=3?r.laps:r.splits).filter(x=>x.hr&&x.km>=0.2);
+      if(segs.length>=3){
+        const avg=r.sec/r.km,work=segs.filter(x=>(x.gap||x.sec/x.km)<avg*0.97);
+        const wsec=work.reduce((a,x)=>a+x.sec,0);
+        if(wsec>=12*60){const half=work.slice(Math.floor(work.length/2));const hr=half.reduce((a,x)=>a+x.hr*x.sec,0)/half.reduce((a,x)=>a+x.sec,0);
+          out.push({v:t==='ritmo'&&state.profile&&['21k','42k'].includes(state.profile.goal)?hr/0.96:hr,date:r.date,label:t==='tempo'?'tempo':'sesión a ritmo de carrera'});}
+      }
+    }
+  });
+  (state.manual||[]).filter(m=>m.date>=from&&m.hr&&m.type==='race').forEach(m=>{const f=factor(m.time/60);if(f)out.push({v:m.hr/f,date:m.date,label:'competición'});});
+  return out.filter(c=>c.v>110&&c.v<215);
+}
+function updateHR(){
+  const H=state.hrm=state.hrm||{lthr:null,date:null,label:null,max:null,hist:[]};
+  const runs=state.strava?state.strava.runs:[];
+  const yr=addDays(today(),-365);
+  const mx=robustMax(runs.filter(r=>r.date>=yr).map(r=>r.hrMax||0).concat((state.manual||[]).map(m=>m.hrMax||0)));
+  if(mx) H.max=mx;
+  const c=lthrCandidates();
+  if(!c.length) return false;
+  // el esfuerzo más alto reciente es el que mejor representa el umbral (los submáximos lo subestiman)
+  let best=c.reduce((a,b)=>b.v>a.v?b:a);
+  const hm=hrMaxNow();
+  let v=Math.round(hm?Math.min(best.v,hm*0.95):best.v);
+  if(H.lthr&&Math.abs(v-H.lthr)<2) return false;
+  const old=H.lthr;
+  H.lthr=v;H.date=best.date;H.label=best.label;H.hist.push({date:today(),v});H.hist=H.hist.slice(-20);
+  if(state.adapt) addEvent('info',old?`Zonas de pulso actualizadas con tu ${best.label} del ${fdShort(best.date)}: tu umbral pasa de ${old} a ${v} ppm.`:`He medido tu umbral de pulso con tu ${best.label} del ${fdShort(best.date)}: ${v} ppm. Tus zonas de pulso ahora salen de ahí.`);
+  return true;
+}
+const lthrNow=()=>{const H=state.hrm;if(H&&H.lthr)return H.lthr;const hm=hrMaxNow();return hm?Math.round(hm*0.89):null;};
+// Ritmos desde el pulso: en tus carreras constantes, la velocidad crece casi en línea recta con el pulso.
+// Extrapolando al umbral sale tu ritmo de umbral, y de ahí tu forma en 5 km.
+function fitnessFromHR(){
+  const L=lthrNow(),ad=state.adapt,td=today();
+  if(!L||!state.fitness||!ad) return false;
+  if(ad.lastHRFit&&daysBetween(ad.lastHRFit,td)<7) return false;
+  // puntos: rodajes constantes enteros y, en las sesiones de calidad, cada tramo rápido por separado (no la media con calentamiento)
+  const pts=[];
+  activities().filter(a=>a.date>=addDays(td,-28)&&a.date<=td&&a.hr&&a.km>=3&&a.sec).forEach(a=>{
+    const r=a.run,segs=r?(r.laps.length>=3?r.laps:r.splits).filter(x=>x.hr&&x.km>=0.4):[];
+    if(segs.length>=3){
+      const pcs=segs.map(x=>x.gap||x.sec/x.km),m=pcs.reduce((x,y)=>x+y,0)/pcs.length,cv=Math.sqrt(pcs.reduce((x,y)=>x+(y-m)**2,0)/pcs.length)/m;
+      if(cv<0.06){pts.push({x:a.hr/L,y:1000/(a.gap||gapFromElev(a.sec,a.km,a.elev)),w:a.sec});return;}
+      const avg=a.sec/a.km;segs.filter(x=>x.sec/x.km<avg*0.97&&x.sec>=150).forEach(x=>pts.push({x:x.hr/L,y:1000/(x.gap||x.sec/x.km),w:x.sec}));
+      return;
+    }
+    if(!r) pts.push({x:a.hr/L,y:1000/(a.gap||gapFromElev(a.sec,a.km,a.elev)),w:a.sec});
+  });
+  const P=pts.filter(q=>q.x>0.7&&q.x<1.08&&q.y>1.5&&q.y<7);
+  if(P.length<6) return false;
+  const W=P.reduce((a,q)=>a+q.w,0),mx=P.reduce((a,q)=>a+q.w*q.x,0)/W,my=P.reduce((a,q)=>a+q.w*q.y,0)/W;
+  const sxx=P.reduce((a,q)=>a+q.w*(q.x-mx)**2,0)/W,sxy=P.reduce((a,q)=>a+q.w*(q.x-mx)*(q.y-my),0)/W,syy=P.reduce((a,q)=>a+q.w*(q.y-my)**2,0)/W;
+  if(sxx<0.0009) return false; // poca variedad de intensidades
+  if(Math.max(...P.map(q=>q.x))<0.92) return false; // sin esfuerzos cerca del umbral no se extrapola
+  const b=sxy/sxx,a=my-b*mx,r2=sxy*sxy/(sxx*syy||1);
+  if(b<=0||r2<0.5) return false;
+  let pEst=(1000/(a+b*1.0))/1.07;const p=state.fitness.p;
+  // un test o una carrera recientes mandan: el pulso solo afina ±2 % alrededor de esa medición
+  const meas=state.fitness.history.filter(h=>h.date>=addDays(td,-28)&&/Test|Carrera|Competición/.test(h.why||'')).pop();
+  if(meas) pEst=clamp(pEst,meas.p*0.98,meas.p*1.02);
+  if(!(pEst>150&&pEst<720)||Math.abs(pEst/p-1)<0.02) return false;
+  ad.lastHRFit=td;
+  return setFitness(p+(pEst-p)*0.3,pEst<p?'En tus últimos entrenos corres más rápido con el mismo pulso':'En tus últimos entrenos te cuesta más pulso ir al mismo ritmo (cansancio, calor o pérdida de forma)');
 }
 
 /* =========================================================
@@ -862,8 +959,10 @@ function setFitness(np,why,force){
     np=Math.max(np,base*0.97);
     if(np>=old-0.5) return false;
   }
+  if(np>old&&!force) np=Math.min(np,old*1.02); // empeorar también va poco a poco
+  if(Math.abs(np-old)<0.5) return false;
   state.fitness.p=np;
-  state.fitness.history.push({date:today(),p:np});
+  state.fitness.history.push({date:today(),p:np,why:String(why).replace(/\.$/,'')});
   if(typeof refreshKm==='function'&&state.plan) refreshKm();
   const d=Math.round((old-np)*5);
   addEvent(np<old?'up':'down',`${why} Tu 5 km estimado pasa de ${ft(old*5)} a ${ft(np*5)} (${d>0?'−':'+'}${ft(Math.abs(d))}). Todos los ritmos se han actualizado.`);
@@ -877,7 +976,7 @@ function _logDone(s,log){
   s.rpeExp=d.rpe;s.snap={title:d.title,lo:d.lo,hi:d.hi,rpe:d.rpe,km:s.km,main:d.blocks.filter(b=>b.k==='main').map(b=>({t:b.t,reps:b.reps||1,dist:b.dist||null,dur:b.dur||null,lo:b.lo,hi:b.hi}))};
   const pace=log.gap||(log.km&&log.time?gapFromElev(log.time,log.km,log.elev):null);
   // 1) Test o carrera: actualiza la forma directamente
-  if((s.type==='test'||s.type==='race')&&log.time){
+  if((s.type==='test'||s.type==='race')&&log.time&&!log.noTest){
     const dist=log.km||(s.type==='test'?5:s.km);
     const np=log.time*Math.pow(5/dist,1.06)/5;
     if(np>150&&np<720) setFitness(np,s.type==='test'?'Test registrado.':'Carrera registrada.',true);
@@ -896,10 +995,10 @@ function _logDone(s,log){
   const hm=hrMaxNow();
   const easyRun=s.type==='easy'||s.type==='long';
   const fastPace=easyRun&&pace&&pace<p*1.12&&log.rpe>=5;
-  const fastHR=easyRun&&log.hr&&hm&&log.hr>hm*0.82;
+  const z2=hrBounds(2),fastHR=easyRun&&log.hr&&z2&&log.hr>z2[1]*1.02;
   if((fastPace||fastHR)&&(!ad.lastFastTip||daysBetween(ad.lastFastTip,td)>=14)){
     ad.lastFastTip=td;
-    addEvent('info',fastHR?`Tu rodaje suave salió con ${Math.round(log.hr)} ppm de media (${Math.round(log.hr/hm*100)} % de tu FC máxima). Para que sea suave, intenta quedarte por debajo de ${Math.round(hm*0.78)} ppm aunque tengas que ir más lento.`
+    addEvent('info',fastHR?`Tu rodaje suave salió con ${Math.round(log.hr)} ppm de media, por encima de tu zona suave (hasta ${z2[1]} ppm). Para que sea suave, quédate por debajo aunque tengas que ir más lento.`
       :`Tu rodaje fue a ${fp(pace)} /km, más rápido que tu zona suave (${fp(p*1.22)}–${fp(p*1.34)}). Ir más lento en los suaves te deja fuerzas para las sesiones de calidad.`);
   }
   // 4) Sesión muy dura: suaviza la siguiente de calidad
@@ -1119,8 +1218,8 @@ async function stravaSync(){
     if(!s.zonesAt||Date.now()-s.zonesAt>7*864e5){
       try{const z=await api('/athlete/zones');const hz=z&&z.heart_rate;if(hz&&hz.custom_zones&&Array.isArray(hz.zones)&&hz.zones.length===5)s.hrZones=hz.zones.map(x=>({min:x.min,max:x.max}));else s.hrZones=null;s.zonesAt=Date.now();}catch(e){}
     }
-    const mx=Math.max(0,...s.runs.map(r=>r.hrMax||0));
-    if(mx>120&&mx<230) s.hrMax=mx;
+    const mx=robustMax(s.runs.map(r=>r.hrMax||0));
+    if(mx) s.hrMax=mx;
     s.lastSync=Date.now();
     const res=afterSync();
     save();
@@ -1136,9 +1235,11 @@ function syncLine(){
 }
 
 /* ---------- análisis de cada carrera ---------- */
-const hrMaxNow=()=>{const pr=state.profile||{},s=state.strava||{};return pr.hrMax||s.hrMaxUser||s.hrMax||(pr.age?Math.round(208-0.7*pr.age):null);};
+const hrMaxNow=()=>{const pr=state.profile||{},s=state.strava||{},H=state.hrm||{};return pr.hrMax||s.hrMaxUser||H.max||s.hrMax||(pr.age?Math.round(208-0.7*pr.age):null);};
 function rpeFromHR(hr){
-  const hm=hrMaxNow();if(!hr||!hm) return null;
+  if(!hr) return null;
+  if(state.hrm&&state.hrm.lthr){const f=hr/state.hrm.lthr;return f<0.81?3:f<0.85?4:f<0.89?5:f<0.93?6:f<0.97?7:f<1.0?8:9;}
+  const hm=hrMaxNow();if(!hm) return null;
   const f=hr/hm;
   return f<0.70?3:f<0.77?4:f<0.82?5:f<0.87?6:f<0.90?7:f<0.93?8:9;
 }
@@ -1158,8 +1259,11 @@ function runLog(r,x){
     rpe:r.rpe||hrR||d.rpe,rpeSrc:r.rpe?'strava':hrR?'fc':'previsto',needsFeel:!r.rpe,
     workPace:QUALITY.includes(x.type)?workPaceOf(r):null};
   if(x.type==='test'){
+    // el test son los 5 km cronometrados, no la sesión entera con calentamiento
     const b=r.be.find(b=>Math.abs(b.d-5000)<60);
     if(b){log.km=5;log.time=b.t;}
+    else{const segs=(r.laps.length>=3?r.laps:r.splits),avg=r.sec/r.km,fast=segs.filter(l=>l.sec/l.km<avg*0.97),fk2=fast.reduce((a,l)=>a+l.km,0);
+      if(fk2>=4.5){log.km=5;log.time=Math.round(fast.reduce((a,l)=>a+l.sec,0)/fk2*5);}else log.noTest=true;}
   }
   return log;
 }
@@ -1191,7 +1295,8 @@ function afterSync(){
     });
     sortSessions();
   }
-  const fit=state.fitness?fitnessFromEfforts():null;
+  let fit=state.fitness?fitnessFromEfforts():null;
+  if(state.adapt){updateHR();if(fitnessFromHR())fit=true;}
   const fat=state.plan?checkFatigue():null;
   if(state.plan) goalCheck();
   return {matched,names,fit,fat};
@@ -1317,8 +1422,8 @@ function analyze(s){
       const gp=s.log.gap||gapFromElev(time,km,s.log.elev)||pace;
       add(gp>=lo*0.97?true:'warn','Ritmo suave',gp>=lo*0.97?`Media de ${fp(gp)} /km${gp!==pace?' (ajustado por desnivel)':''}, dentro de lo suave.`:`Media de ${fp(gp)} /km: más rápido que tu zona suave (${paceR(lo,hi)}).`);
     }
-    if(hm&&segs.length>=2&&segs.every(x=>x.hr)){
-      const hi80=hm*0.80,over=segs.filter(x=>x.hr>hi80).length;
+    if(hrBounds(2)&&segs.length>=2&&segs.every(x=>x.hr)){
+      const hi80=hrBounds(2)[1],over=segs.filter(x=>x.hr>hi80).length;
       add(over/segs.length<=0.25?true:'warn','Pulso',over?`${over} de ${segs.length} km por encima de ${Math.round(hi80)} ppm (Z2).`:`Siempre en Z2 o por debajo.`);
       if(segs.length>=6){ // desacople aeróbico: eficiencia (velocidad/pulso) 1.ª mitad vs 2.ª
         const h=Math.floor(segs.length/2),ef=a=>a.reduce((x,y)=>x+y.km,0)/a.reduce((x,y)=>x+y.sec,0)/(a.reduce((x,y)=>x+y.hr*y.km,0)/a.reduce((x,y)=>x+y.km,0));
@@ -1474,12 +1579,17 @@ function paceZones(){
   return z;
 }
 function renderZonas(){
-  const hm=hrMaxNow(),src=state.profile.hrMax?'la que pusiste en tu perfil':state.strava&&state.strava.hrMax?'la más alta registrada en Strava':state.profile.age?'estimada por tu edad':'';
+  const hm=hrMaxNow(),src=state.profile.hrMax?'la que pusiste en tu perfil':state.hrm&&state.hrm.max?'la más alta medida en tus carreras':state.strava&&state.strava.hrMax?'la más alta registrada en Strava':state.profile.age?'estimada por tu edad':'';
+  const hs=hrSource(),H=state.hrm||{};
+  const lastFit=[...state.fitness.history].reverse().find(h=>h.why);
   app.innerHTML=`<div class="stack-lg"><header class="stack" style="gap:6px"><div class="lanes" aria-hidden="true"></div><a href="#progreso" class="small" style="color:var(--accent);font-weight:600">‹ Progreso</a><h1>Tus zonas</h1>
-    <p class="muted">Calculadas con tu forma actual (5 km en ${ft(state.fitness.p*5)}). Se actualizan solas cuando mejoras.</p></header>
+    <p class="muted">Se recalculan solas con lo que mides en cada entreno: tests, carreras, series, tempos y la relación entre tu pulso y tu ritmo en los rodajes.</p></header>
+    <section class="card stack" style="gap:6px"><span class="eyebrow">Tu forma ahora</span><div class="row between"><span>5 km estimado</span><b class="num zv">${ft(state.fitness.p*5)}</b></div>
+      ${lastFit?`<p class="small muted">Última actualización: ${fdShort(lastFit.date)}. ${esc(lastFit.why)}.</p>`:'<p class="small muted">Aún sin actualizaciones: saldrán de tus próximos entrenos.</p>'}
+      ${H.lthr?`<div class="row between"><span>Umbral de pulso</span><b class="num zv">${H.lthr} ppm</b></div><p class="small muted">Medido con tu ${esc(H.label)} del ${fdShort(H.date)}.</p>`:''}</section>
     <section class="card stack" style="gap:0"><h3 style="margin-bottom:6px">Ritmo</h3>${paceZones().map(([n,lo,hi,t])=>`<div class="zrow"><div><b>${n}</b>${t?`<br><span class="small muted">${t}</span>`:''}</div><span class="num zv">${paceR(lo,hi)} /km</span></div>`).join('')}</section>
     <section class="card stack" style="gap:0"><h3 style="margin-bottom:6px">Pulso</h3>
-      ${hrBounds(1)?HR_Z.map(z=>{const b=hrBounds(z.n);return `<div class="zrow"><div><b>Z${z.n} · ${z.name}</b></div><span class="num zv">${z.n===1?`<${b[1]}`:!b[1]?`>${b[0]}`:`${b[0]}–${b[1]}`} ppm</span></div>`;}).join('')+`<p class="small muted" style="margin-top:8px">${state.strava&&state.strava.hrZones?'Son tus zonas personalizadas de Strava.':`Con una FC máxima de ${hm} ppm (${src}). Puedes cambiarla en Perfil.`}</p>`
+      ${hrBounds(1)?HR_Z.map(z=>{const b=hrBounds(z.n);return `<div class="zrow"><div><b>Z${z.n} · ${z.name}</b></div><span class="num zv">${z.n===1?`<${b[1]}`:!b[1]?`>${b[0]}`:`${b[0]}–${b[1]}`} ppm</span></div>`;}).join('')+`<p class="small muted" style="margin-top:8px">${hs==='lthr'?`Calculadas sobre tu umbral de pulso medido (${H.lthr} ppm). Se actualizan cuando hagas un tempo, un test o una carrera con pulsómetro.`:hs==='strava'?'Son tus zonas personalizadas de Strava. Cuando hagas un tempo, un test o una carrera con pulsómetro, las calcularé con tu umbral medido.':`Con una FC máxima de ${hm} ppm (${src}). Cuando hagas un tempo, un test o una carrera con pulsómetro, las calcularé con tu umbral medido.`}</p>`
       :'<p class="small muted">Pon tu FC máxima o tu edad en Perfil (o conecta Strava) para ver tus zonas de pulso.</p>'}</section>
     <section class="card stack"><h3>Cómo usarlas</h3><p class="small">El 80 % de los kilómetros deberían ir en zona suave. Si el ritmo y el pulso no cuadran (calor, cuestas, cansancio), manda el pulso en los días suaves y el ritmo en las series.</p></section></div>`;
 }
@@ -1623,6 +1733,9 @@ function openSession(id){
     ${s.status==='done'?`<button class="ghost" data-act="unlog" data-id="${s.id}">${s.log&&s.log.strava?'Desvincular de Strava':'Borrar registro'}</button>`:''}
     <div class="grid2"><a class="btn" href="#zonas" data-act="close" style="text-align:center;text-decoration:none">Ver mis zonas</a><button class="ghost" data-act="close">Cerrar</button></div></div>`);
 }
+// semanas desplegadas en Plan: se recuerdan mientras usas la app
+let openWeeks=null;
+document.addEventListener('toggle',e=>{const d=e.target;if(!d.classList||!d.classList.contains('wk'))return;if(!openWeeks){openWeeks=new Set();document.querySelectorAll('details.wk[open]').forEach(x=>openWeeks.add(+x.dataset.w));}if(d.open)openWeeks.add(+d.dataset.w);else openWeeks.delete(+d.dataset.w);},true);
 function renderPlan(){
   const plan=state.plan,cw=curWeek(),td=today();
   const weeks=plan.curve.map((c,i)=>{
@@ -1638,7 +1751,7 @@ function renderPlan(){
       <span class="grow"><span class="t">${d.title}</span><br><span class="s num">${timeBased?d.dur+' min':fk(s.status==='done'&&s.log&&s.log.km?s.log.km:s.km)+' km'}${s.type!=='cuestas'&&s.type!=='runwalk'?' · '+(s.status==='done'&&s.log&&s.log.km&&s.log.time?fp(s.log.time/s.log.km)+' /km':paceR(d.lo,d.hi)+' /km'):''}${s.moved||s.manual?' · movida':''}</span></span>
       ${s.status==='done'?`<span class="status d">${a&&a.verdict[1]!=='ok'?a.verdict[0]:'Hecha'}</span>`:s.status==='skipped'?'<span class="status s">Saltada</span>':s.status==='paused'?'<span class="status s">Pausa</span>':chipFor(s)}
     </button>`;}).join('');
-    return `<details class="wk" ${i===cw?'open':''}>
+    return `<details class="wk" data-w="${i}" ${(openWeeks?openWeeks.has(i):i===cw)?'open':''}>
       <summary><span class="grow" style="flex:1"><b style="font-family:var(--display);font-size:19px">Semana ${i+1}</b> <span class="small muted">${fdShort(wkS)} – ${fdShort(addDays(wkS,6))}</span><br><span class="small muted">${PHASE_N[c.phase]}${c.down?' · descarga':''}${i===cw?' · esta semana':''}</span></span>
       <span class="num" style="font-family:var(--display);font-weight:800;font-size:20px">${fk(km)}<span class="unit" style="font-size:15px">km</span></span></summary>
       ${i<=cw&&ss.length?`<div class="bar" style="margin-top:12px" aria-label="${done} de ${ss.length} sesiones hechas"><i style="width:${ss.length?done/ss.length*100:0}%"></i></div>`:''}
@@ -2154,6 +2267,7 @@ function saveAddRun(){
       if(state.fitness){const np=t*Math.pow(5/km,1.06)/5;if(np>150&&np<720){setFitness(np,'Competición registrada.',true);msg='Competición registrada: ritmos actualizados.';}}
     }
     if(state.plan&&checkFatigue()) msg+=' Plan ajustado por la carga.';
+    if(state.adapt&&updateHR()) msg+=' Zonas de pulso actualizadas.';
   }
   save();closeSheet();route();toast(msg,{undo:snap});
 }
@@ -2210,9 +2324,22 @@ function route(){
 }
 
 /* ---------- Hojas: deslizar para cerrar, fondo bloqueado ---------- */
+// bloqueo del fondo sin perder la posición: el cuerpo se fija donde estaba y al cerrar se vuelve exactamente a ese punto
+let lockedY=null;
+function lockScroll(){
+  if(lockedY!==null) return;
+  lockedY=window.scrollY;const b=document.body.style;
+  b.position='fixed';b.top=`-${lockedY}px`;b.left='0';b.right='0';b.width='100%';
+}
+function unlockScroll(){
+  if(lockedY===null) return;
+  const y=lockedY;lockedY=null;const b=document.body.style;
+  b.position='';b.top='';b.left='';b.right='';b.width='';
+  window.scrollTo(0,y);
+}
 function closeSheet(instant){
   const bg=layer.querySelector('.sheet-bg');if(!bg) return;
-  document.documentElement.classList.remove('locked');
+  unlockScroll();
   if(instant||matchMedia('(prefers-reduced-motion: reduce)').matches){bg.remove();return;}
   bg.classList.add('closing');setTimeout(()=>bg.remove(),200);
 }
@@ -2228,7 +2355,7 @@ function openSheet(html){
   sh.addEventListener('touchmove',e=>{if(y0==null)return;dy=e.touches[0].clientY-y0;if(dy>0){sh.style.transform=`translateY(${dy}px)`;}else{y0=null;sh.style.transform='';}},{passive:true});
   sh.addEventListener('touchend',()=>{if(y0==null)return;sh.style.transition='';if(dy>110){sh.style.transform=`translateY(100%)`;closeSheet();}else sh.style.transform='';y0=null;});
   layer.appendChild(bg);
-  document.documentElement.classList.add('locked');
+  lockScroll();
 }
 
 /* ---------- Registrar una sesión ---------- */
