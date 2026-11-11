@@ -19,6 +19,8 @@ import { checkinCard } from '../checkin.js';
 import { strengthRow } from '../strength.js';
 import { lastTab, openSheet, route } from '../router.js';
 import { RPE_OPTS } from '../actions.js';
+import { refOfSession } from '../../model/shoes.js';
+import { shoeAlertCard, shoeSetHTML } from '../shoes.js';
 
 export function chipFor(s){const t=TYPES[s.type];return `<span class="chip ${t.c}">${t.k}</span>`;}
 
@@ -67,6 +69,7 @@ export function renderHoy(){
     ${checkinCard()}
     ${main}
     ${(x=>x?`<div class="list card" style="padding:0 14px">${strengthRow(x)}</div>`:'')(strengthToday())}
+    ${shoeAlertCard()}
     ${summaryCard(true)}
     ${goalCard()}
     ${ev?`<section class="card stack" style="gap:6px"><span class="eyebrow">Último ajuste del plan · ${fdShort(ev.date)}</span><p>${esc(ev.text)}</p><a href="#progreso" class="small" style="color:var(--accent);font-weight:600">Ver todos los ajustes</a></section>`:''}
@@ -114,6 +117,7 @@ export function openSession(id){
   const s=state.sessions.find(x=>x.id===id);if(!s)return;
   openSheet(`<div class="stack">${sessionCard(s,s.date===today())}${s.status==='pending'?moveHTML(s):''}
     ${s.status==='pending'&&s.date>today()?`<button class="ghost" data-act="skip" data-id="${s.id}">Sé que no podré hacerla</button>`:''}
+    ${s.status==='done'?shoeSetHTML(refOfSession(s)):''}
     ${s.status==='done'?`<button class="ghost" data-act="unlog" data-id="${s.id}">${s.log&&s.log.strava?'Desvincular de Strava':'Borrar registro'}</button>`:''}
     <div class="grid2"><a class="btn" href="#zonas" data-act="close" style="text-align:center;text-decoration:none">Ver mis zonas</a><button class="ghost" data-act="close">Cerrar</button></div></div>`);
 }

@@ -4,7 +4,9 @@ Sin dependencias para las pruebas de lógica (solo Node ≥ 18):
 
 ```sh
 node tests/engine.test.cjs   # 60 corredores simulados durante 160 días
+node tests/shoes.test.cjs    # zapatillas: km, avisos, Strava
 node tests/check-sw.cjs      # el service worker incluye todos los archivos
+node tests/check-layers.cjs  # model/ no depende de la pantalla ni de la red
 ```
 
 En navegador real (opcional, necesita Playwright):

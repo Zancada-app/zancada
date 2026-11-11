@@ -24,12 +24,13 @@ import { addDraft, openAddRun, openManual, readAddRun, renderAddRun, saveAddRun,
 import { toast, undoLast } from './toast.js';
 import { closeSheet, lastTab, route, setLastTab } from './router.js';
 import { askSkip, confirmReset, openLog, submitLog } from './actions.js';
+import { applyShoeSet, openShoe, pickShoeKind, saveShoe, shoeAction, touchShoeLimit } from './shoes.js';
 
 /* ---------- Eventos ---------- */
 export let lastAct={a:null,t:0},geoResults=[];
 
 // solo se protegen del doble toque las acciones que confirman o cambian de pantalla; las de elegir opciones van sin freno
-export const GUARDED=new Set(['wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
+export const GUARDED=new Set(['shoesave','shoeretire','shoeunretire','shoedel','shoeswap','shoeack','shoeopen','wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
 
 /** Registra los manejadores globales (delegación de eventos). Se llama una vez desde main.js. */
 export function bindEvents(){
@@ -102,6 +103,14 @@ export function bindEvents(){
       case 'addrpe': addDraft.rpe=+t.dataset.v;t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-checked',String(b===t)));$('#aerr').textContent='';break;
       case 'addsave': saveAddRun();break;
       case 'manopen': openManual(id);break;
+      // zapatillas
+      case 'shoeopen': openShoe(id||null);break;
+      case 'shoesave': saveShoe();break;
+      case 'shoekind': pickShoeKind(t);break;
+      case 'shoedef': t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===t)));break;
+      case 'shoepick': t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===t)));if(addDraft&&t.closest('#addf'))addDraft.shoe=t.dataset.v;break;
+      case 'shoeset': applyShoeSet(t);break;
+      case 'shoeack': case 'shoeretire': case 'shoeunretire': case 'shoedel': case 'shoeswap': shoeAction(a,id);break;
       case 'mandel':{const snap=JSON.stringify(state);state.manual=(state.manual||[]).filter(m=>m.id!==id);save();closeSheet();route();toast('Entreno borrado.',{undo:snap});break;}
       case 'unlog':{const s=state.sessions.find(x=>x.id===id);if(!s)break;const snap=JSON.stringify(state);unlogSession(s);save();closeSheet();route();toast('Registro borrado.',{undo:snap});break;}
       case 'newblock':{const snap=JSON.stringify(state);const pr={...state.profile};pr.weeklyKm=Math.round(activities().filter(a=>daysBetween(a.date,today())<21&&a.date<=today()).reduce((x,a)=>x+a.km,0)/3);if(pr.raceDate&&pr.raceDate<=today()){pr.raceDate=null;pr.targetTime=null;}pr.refDist=null;pr.refTime=null;state.profile.refDist=null;state.profile.refTime=null;createPlan(pr,true);save();route();toast('Nuevo bloque creado.',{undo:snap});break;}
@@ -139,7 +148,7 @@ export function bindEvents(){
 
   document.addEventListener('change',e=>{
     const el=e.target;
-    if(el.matches&&el.matches('.picker select')){onPickerChange(el);return;}
+    if(el.matches&&el.matches('.picker select')){onPickerChange(el);if(el.closest('[data-target="sh-limit"]'))touchShoeLimit();return;}
     if(el.id==='f-race'&&draft){readDraftInputs();wizRerender();return;}
     if(el.id==='a-date'&&addDraft){readAddRun();renderAddRun();return;}
     if(el.id==='p-to'){const h=$('#p-to-h');if(h)h.textContent=el.value?`Vuelves el ${fdLong(el.value)}.`:'';return;}

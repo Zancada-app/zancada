@@ -14,6 +14,7 @@ import { intPicker, pickerHTML } from '../pickers.js';
 import { toast } from '../toast.js';
 import { closeSheet, openSheet, route } from '../router.js';
 import { RPE_OPTS } from '../actions.js';
+import { readShoePick, shoePickHTML, shoeSetHTML } from '../shoes.js';
 
 /* =========================================================
    Registro manual de entrenamientos
@@ -41,6 +42,7 @@ export function renderAddRun(){
     <div><label>Tiempo</label>${pickerHTML('a-t','','dur',a.t||'',true)}</div>
     <div class="grid2"><div><label>Desnivel +</label>${intPicker('a-elev','',0,2500,10,a.elev==null?'':a.elev,'m','Sin dato')}</div><div><label>Pulso medio</label>${intPicker('a-hr','',80,210,1,a.hr==null?'':a.hr,'ppm','Sin dato')}</div></div>
     <div><label>¿Cómo te ha resultado?</label><div class="rpe" role="radiogroup">${RPE_OPTS.map(([v,l])=>`<button type="button" role="radio" data-act="addrpe" data-v="${v}" aria-checked="${a.rpe===v}"><b>${v}</b>${l}</button>`).join('')}</div></div>
+    ${shoePickHTML(a.shoe)}
     <div><label for="a-n">Notas <span class="muted">(opcional)</span></label><textarea id="a-n" rows="2" placeholder="Recorrido, sensaciones…">${esc(a.notes||'')}</textarea></div>
     <p class="err" id="aerr" role="alert"></p>
     <div class="grid2"><button type="button" class="ghost" data-act="close">Cancelar</button><button type="button" class="primary" data-act="addsave">Guardar</button></div></div>`;
@@ -53,6 +55,7 @@ export function readAddRun(){
   const a=addDraft,v=id=>{const e=$('#'+id);return e?e.value:'';};
   a.km=v('a-km');a.t=v('a-t');a.elev=v('a-elev')===''?null:+v('a-elev');a.hr=v('a-hr')===''?null:+v('a-hr');a.notes=v('a-n');
   const dd=v('a-date');if(dd)a.date=dd;
+  const sf=$('#addf');if(sf){const sp=readShoePick(sf);if(sp!==undefined)a.shoe=sp;}
 }
 
 export function saveAddRun(){
@@ -67,6 +70,7 @@ export function saveAddRun(){
   const snap=JSON.stringify(state);
   const ses=state.plan?state.sessions.find(x=>x.date===a.date&&(x.status==='pending'||(x.status==='skipped'&&x.auto))):null;
   const log={rpe:a.rpe,km,time:t,elev:a.elev,hr:a.hr,notes:(a.notes||'').trim().slice(0,200),gap:gapFromElev(t,km,a.elev)};
+  if(a.shoe)log.shoe=a.shoe;
   let msg;
   if(ses){
     if(ses.status==='skipped'){const copy=state.sessions.find(y=>y.moved&&y.from===ses.date&&y.type===ses.type&&y.status==='pending');if(copy)state.sessions=state.sessions.filter(y=>y!==copy);}
@@ -94,6 +98,7 @@ export function openManual(id){
     <div class="tiles"><div class="tile"><div class="k">Distancia</div><div class="v num">${fk(m.km)} km</div></div><div class="tile"><div class="k">Tiempo</div><div class="v num">${ft(m.time)}</div><div class="k num">${fp(m.time/m.km)} /km</div></div></div>
     <p class="small muted">${[m.elev!=null?`+${m.elev} m de desnivel`:'',m.hr?`${m.hr} ppm de media`:'',`esfuerzo ${m.rpe}/10`].filter(Boolean).join(' · ')}</p>
     ${m.notes?`<p class="small">${esc(m.notes)}</p>`:''}
+    ${shoeSetHTML('m:'+m.id)}
     <p class="small muted">Cuenta para tu carga, tu forma y tus kilómetros.</p>
     <div class="grid2"><button class="danger" data-act="mandel" data-id="${m.id}">Borrar</button><button class="ghost" data-act="close">Cerrar</button></div></div>`);
 }

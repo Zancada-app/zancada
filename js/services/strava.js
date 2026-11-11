@@ -8,6 +8,7 @@ import { gapFromElev } from '../model/elevation.js';
 import { afterSync } from '../model/activities.js';
 import { toast } from '../ui/toast.js';
 import { setBusy } from '../ui/actions.js';
+import { autoAssignShoes, syncStravaShoes } from '../model/shoes.js';
 
 /* =========================================================
    Strava
@@ -127,6 +128,7 @@ export async function stravaSync(){
     s.gear=s.gear||{};
     const ids=[...new Set(s.runs.filter(r=>r.gear&&r.date>=addDays(today(),-365)).map(r=>r.gear))].slice(0,8);
     for(const gid of ids){const g=s.gear[gid];if(g&&Date.now()-g.at<864e5)continue;try{const j=await api('/gear/'+gid);s.gear[gid]={name:String(j.name||j.model_name||'Zapatillas').slice(0,60),km:(j.distance||0)/1000,retired:!!j.retired,at:Date.now()};}catch(e){if(/limita/.test(e.message))break;}}
+    syncStravaShoes();autoAssignShoes();
     if(!s.zonesAt||Date.now()-s.zonesAt>7*864e5){
       try{const z=await api('/athlete/zones');const hz=z&&z.heart_rate;if(hz&&hz.custom_zones&&Array.isArray(hz.zones)&&hz.zones.length===5)s.hrZones=hz.zones.map(x=>({min:x.min,max:x.max}));else s.hrZones=null;s.zonesAt=Date.now();}catch(e){}
     }

@@ -13,17 +13,6 @@ import { PAUSE_R, inactive } from '../model/calendar.js';
 import { PHASE_TIP, weekSummary } from '../model/weekly.js';
 import { openSheet } from './router.js';
 
-/* =========================================================
-   Zapatillas (de Strava)
-   ========================================================= */
-export function shoesCard(){
-  const g=state.strava&&state.strava.gear;if(!g) return '';
-  const list=Object.values(g).filter(x=>!x.retired).sort((a,b)=>b.km-a.km);if(!list.length) return '';
-  return `<section class="card stack" style="gap:0"><h3 style="margin-bottom:6px">Zapatillas</h3>${list.map(x=>{const pct=clamp(x.km/800,0,1),w=x.km>=800?['Cámbialas','q']:x.km>=600?['Pronto','w']:['Bien','ok'];
-    return `<div class="zrow" style="flex-direction:column;align-items:stretch;gap:6px"><div class="row between"><b>${esc(x.name)}</b><span class="chip ${w[1]}">${w[0]}</span></div>
-      <div class="bar"><i style="width:${pct*100}%;background:${x.km>=800?'var(--accent)':x.km>=600?'var(--warn)':'var(--good)'}"></i></div><span class="small muted num">${fk(x.km)} km de unos 700–800 de vida útil</span></div>`;}).join('')}</section>`;
-}
-
 export function marksCard(){
   const pr=state.profile,man=(pr.marks||[]),sp=stravaPRs(),b=bestMark(pr);
   const rows=[];

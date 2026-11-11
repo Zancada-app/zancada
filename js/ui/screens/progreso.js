@@ -9,7 +9,8 @@ import { TRACK_CLS, goalInfo } from '../../model/goal.js';
 import { adherence } from '../../model/adapt.js';
 import { activities, formState } from '../../model/activities.js';
 import { app } from '../dom.js';
-import { marksCard, shoesCard, summaryCard } from '../cards.js';
+import { marksCard, summaryCard } from '../cards.js';
+import { shoesCard } from '../shoes.js';
 import { barChart, formChart, lineChart } from '../charts.js';
 import { MAN_TYPES } from './manual.js';
 

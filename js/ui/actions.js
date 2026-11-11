@@ -10,6 +10,7 @@ import { moveOptions } from '../model/calendar.js';
 import { pickerHTML, timeField } from './pickers.js';
 import { toast } from './toast.js';
 import { closeSheet, openSheet, route } from './router.js';
+import { readShoePick, shoePickHTML } from './shoes.js';
 
 /* ---------- Registrar una sesión ---------- */
 export const RPE_OPTS=[[2,'Muy fácil'],[4,'Fácil'],[6,'Normal'],[8,'Duro'],[10,'Al límite']];
@@ -25,6 +26,7 @@ export function openLog(id){
     <div>${timeField('l-t','',null,'dur','',s.type==='test'?'Tiempo de los 5 km':'Tiempo total')}</div>
     ${s.type==='test'?'<div class="hint" style="margin-top:-6px">En el test, pon solo los 5 km cronometrados.</div>':''}
     ${q?`<div>${timeField('l-wp','',null,'pace',`${fp(d.lo)}`,'Ritmo en la parte rápida <span class="muted">(opcional)</span>','enterkeyhint="next"')}<div class="hint">Objetivo ${paceR(d.lo,d.hi)} /km. Con este dato afino tus ritmos.</div></div>`:''}
+    ${shoePickHTML()}
     <div><label for="l-n">Notas <span class="muted">(opcional)</span></label><textarea id="l-n" rows="2" placeholder="Molestias, calor, cansancio…"></textarea></div>
     <p class="err" id="lerr" role="alert"></p>
     <div class="grid2"><button type="button" class="ghost" data-act="close">Cancelar</button><button type="button" class="primary" data-act="logsave">Guardar</button></div>
@@ -46,7 +48,8 @@ export function submitLog(form){
   const wpEl=form.querySelector('#l-wp');const wp=wpEl&&wpEl.value.trim()?parsePace(wpEl.value):null;
   if(wpEl&&wpEl.value.trim()&&!wp){err.textContent='Revisa el ritmo, por ejemplo 4:45.';return;}
   const snap=JSON.stringify(state),ev0=state.adapt.events[0];
-  logDone(s,{rpe:+sel.dataset.v,km:km||(s.type==='test'&&time?5:null),time,workPace:wp,notes:form.querySelector('#l-n').value.trim().slice(0,200)});
+  const shoe=readShoePick(form);
+  logDone(s,Object.assign({rpe:+sel.dataset.v,km:km||(s.type==='test'&&time?5:null),time,workPace:wp,notes:form.querySelector('#l-n').value.trim().slice(0,200)},shoe?{shoe}:{}));
   save();closeSheet();route();
   const ne=state.adapt.events[0];
   toast(ne&&ne!==ev0?'Guardada. Plan ajustado: '+ne.text.split('. ')[0]+'.':'Guardada. ¡Bien hecho!',{undo:snap});

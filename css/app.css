@@ -247,3 +247,8 @@ nav.tabs a{transition:color .15s ease,background-color .15s ease}
 nav.tabs a[aria-current="page"]{background:var(--accent-soft)}
 textarea{min-height:64px}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .22s ease-out}@keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}}
+
+/* zapatillas */
+.zrow.shoe{flex-direction:column;align-items:stretch;gap:6px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0;min-height:0;font-weight:400}
+.zrow.shoe:last-of-type{border-bottom:0}
+.zrow.shoe b{font-weight:600}

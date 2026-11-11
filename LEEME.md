@@ -85,7 +85,7 @@ Algunos navegadores bloquean que una página hable directamente con Strava (es u
 - **Predicciones realistas:** en media y maratón tienen en cuenta tus tiradas largas y tu volumen. Cada carrera con pulso recibe una nota de rendimiento (80–120 %).
 - **Calor:** si pones tu ciudad y la hora a la que sueles correr, la app consulta la previsión en Open-Meteo (gratuito, solo se envía la ciudad) y ralentiza los ritmos los días de calor.
 - **Fuerza y movilidad:** dos rutinas cortas a la semana (A y B) en días que no estorban a las sesiones duras.
-- **Zapatillas:** kilómetros de cada par según Strava, con aviso a partir de 600 km.
+- **Zapatillas:** en Progreso › Zapatillas das de alta tus pares (nombre, tipo y a cuántos km cambiarlas: unos 700 las de diario, 600 las de trail, 400–500 las ligeras) y los km que ya llevan. Cada carrera se apunta al par por defecto, y al registrarla puedes elegir otro; también se puede cambiar después en la propia carrera. Con Strava, si eliges allí las zapatillas de cada actividad, los pares se crean solos y el kilometraje lo lleva Strava. En Hoy te avisa al llegar al 90 % y al pasar el límite; con «Ya las he cambiado» se retiran y añades las nuevas.
 - **Tiempo disponible:** si indicas un máximo para los días entre semana, las sesiones se acortan para caber en él.
 
 ## 6. Datos y copias de seguridad
@@ -123,6 +123,7 @@ js/model/               lógica de entrenamiento, sin pantalla ni red:
   analysis.js             análisis de la sesión hecha
   readiness.js            estado del día y «No estoy al 100 %»
   calendar.js             mover sesiones, pausas y vuelta
+  shoes.js                zapatillas: km por par y avisos de cambio
   weather.js, strength.js, weekly.js   calor, fuerza, resumen semanal
 js/services/            Strava (OAuth, API, sincronización) y tiempo (Open-Meteo)
 js/ui/                  router, hojas, avisos, selectores, gráficas, tarjetas, eventos
