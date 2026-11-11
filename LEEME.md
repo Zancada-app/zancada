@@ -67,6 +67,14 @@ Algunos navegadores bloquean que una página hable directamente con Strava (es u
   - **Rodajes demasiado rápidos:** avisa si van demasiado deprisa o con el pulso alto (más del 82 % de la FC máxima).
   - **Predicciones:** tiempos para 5 km, 10 km, media y maratón, y previsión para el día de la carrera según la tendencia de mejora.
 
+## Funciones principales
+
+- **Entrenos por bloques:** calentamiento, parte principal y vuelta a la calma, cada bloque con distancia o tiempo, ritmo y zona de pulso, más la duración estimada.
+- **Análisis de cada sesión:** compara cada serie o cada km de Strava con lo pedido (ritmo, repeticiones, regularidad, pulso, desacople) y da un veredicto: Cumplida, Cumplida con matices o Incompleta. Muestra también qué cambió en el plan por esa sesión. Para analizar series una a una, pulsa vuelta en el reloj al empezar y acabar cada serie.
+- **Calendario:** en cada sesión de esta semana, «Cambiar de día» la mueve o la intercambia. En Plan, «Pausar el plan» para lesión, enfermedad o viaje. Al volver, la carga se ajusta según los días parados y los primeros días son solo suaves.
+- **Zonas:** en Progreso › Tus zonas, ritmos de recuperación a series cortas y zonas de pulso Z1–Z5. Pon la FC máxima o la edad en Perfil.
+- **Resumen semanal:** cada lunes, en Hoy, aparece un resumen de la semana pasada y de lo que viene.
+
 ## 6. Datos y copias de seguridad
 
 - Todo vive en el almacenamiento del iPhone, dentro de la app instalada. Si se borra la app de la pantalla de inicio, se borran los datos.
