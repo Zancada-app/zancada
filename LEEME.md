@@ -1,0 +1,78 @@
+# Zancada: instalación
+
+Zancada es una web app: se abre en Safari y se instala en la pantalla de inicio del iPhone como cualquier app. No necesita Mac, App Store ni servidor propio. Todos los datos (plan, historial, conexión con Strava) se guardan **solo en el iPhone del corredor**.
+
+Necesitas:
+- Una cuenta gratuita de GitHub, para alojar los archivos.
+- La cuenta de Strava del corredor (su reloj Huawei ya sube ahí las carreras).
+
+---
+
+## 1. Publicar la app (una sola vez, unos 10 minutos)
+
+1. Entra en https://github.com y crea una cuenta si no tienes.
+2. Pulsa **New repository**. Nombre: `zancada`. Márcalo como **Public** y pulsa **Create repository**.
+3. En el repositorio vacío, pulsa **uploading an existing file**. Arrastra **todo el contenido** de esta carpeta (`index.html`, `manifest.webmanifest`, `sw.js`, `robots.txt` y los tres iconos `.png`). Pulsa **Commit changes**.
+4. Ve a **Settings › Pages**. En *Source* elige **Deploy from a branch**, rama `main`, carpeta `/ (root)`, y pulsa **Save**.
+5. En uno o dos minutos la app estará en:
+   `https://TU-USUARIO.github.io/zancada/`
+
+> El código es público, pero no contiene ninguna clave ni ningún dato. Las claves de Strava se escriben dentro de la app y se quedan en el iPhone.
+
+## 2. Crear la conexión con Strava (con la cuenta del corredor)
+
+Strava solo deja leer datos a través de una "aplicación" registrada. Para uso personal, lo más sencillo es que la cree **el propio corredor con su cuenta**: así la app solo accede a sus datos.
+
+1. Inicia sesión en Strava con la cuenta del corredor y entra en https://www.strava.com/settings/api
+2. Rellena:
+   - **Application Name:** Zancada (o lo que quieras)
+   - **Category:** Training
+   - **Website:** `https://TU-USUARIO.github.io/zancada/`
+   - **Authorization Callback Domain:** `TU-USUARIO.github.io` (sin `https://` y sin barra)
+3. Guarda. Verás un **Client ID** (un número) y un **Client Secret** (pulsa *show*). Los necesitarás en el paso 3.
+
+Ten en cuenta:
+- Las aplicaciones nuevas de Strava empiezan en "modo de un solo atleta". Para uso personal es justo lo que hace falta.
+- Desde junio de 2026, Strava puede pedir una suscripción de pago a quien registra una aplicación. Si te lo pide, la cuenta del corredor necesitará suscripción.
+
+## 3. Instalar en el iPhone del corredor
+
+1. Abre `https://TU-USUARIO.github.io/zancada/` en **Safari**.
+2. Pulsa **Compartir › Añadir a pantalla de inicio**.
+3. Abre Zancada **desde el icono**, no desde Safari: cada sitio guarda sus datos por separado.
+4. En la primera pantalla, escribe el **Client ID** y el **Client Secret** y pulsa **Conectar con Strava**. Acepta el permiso para ver las actividades.
+5. La app importa los últimos 4 meses de carreras y rellena el formulario (km por semana, días, nivel y forma). Revisa los datos, elige el objetivo y pulsa **Crear mi plan**.
+
+**Si después de aceptar en Strava acabas en Safari en vez de en la app,** verás una pantalla con un código. Cópialo, abre Zancada desde el icono y pégalo en **Perfil › Strava › Avanzado › Código de conexión**.
+
+## 4. Si la conexión falla ("El navegador no pudo hablar con Strava")
+
+Algunos navegadores bloquean que una página hable directamente con Strava (es una protección llamada CORS). La solución es un pequeño intermediario gratuito que no guarda nada:
+
+1. Crea una cuenta en https://dash.cloudflare.com y ve a **Workers & Pages › Create › Create Worker**. Llámalo `zancada-proxy` y pulsa **Deploy**.
+2. Pulsa **Edit code**, borra lo que haya y pega el contenido de `proxy-cloudflare-worker.js`. En la línea `ALLOWED_ORIGIN` pon `https://TU-USUARIO.github.io`. Pulsa **Deploy**.
+3. Copia la dirección del worker (algo como `https://zancada-proxy.TU-USUARIO.workers.dev`).
+4. En Zancada: **Perfil › Strava › Avanzado › Proxy**, pega esa dirección y vuelve a pulsar **Conectar con Strava**.
+
+## 5. Uso diario
+
+- El corredor graba la carrera con el reloj. Cuando se sube a Strava, basta con abrir Zancada: sincroniza sola (o pulsa **Sincronizar**).
+- Cada carrera se empareja con la sesión del plan de ese día (o de un día cercano de la misma semana).
+- Si Strava no trae el esfuerzo percibido, la app lo estima por el pulso y pide una valoración rápida: Muy fácil, Fácil, Normal, Duro o Al límite. Es el dato que más ayuda a adaptar el plan.
+- Lo que cambia solo:
+  - **Marca objetivo:** si pones una marca (por ejemplo 10 km en 50:00), la app calcula si es alcanzable en el plazo, construye el plan para llegar a ella (más volumen y calidad si es ambiciosa, sesiones a ritmo de carrera objetivo) y cada dos semanas revisa si vas en camino. Si vas por detrás, añade calidad o, si el problema son las sesiones saltadas o la fatiga, te lo dice. Si ya no es alcanzable, propone una marca realista. Si vas por delante, propone apuntar más alto.
+  - **Ritmos:** se ajustan con los mejores esfuerzos de Strava (1 milla, 5 km, 10 km…), los tests de 5 km, las carreras y la parte rápida de las series. Mejoran como mucho un 3 % por semana para no fiarse de un GPS loco.
+  - **Volumen:** baja si las sesiones cuestan más de lo previsto, si se saltan entrenamientos o si la fatiga de la última semana supera mucho a la forma de base. Sube si todo resulta fácil.
+  - **Sesiones saltadas:** las importantes se mueven a otro día libre de la semana.
+  - **Rodajes demasiado rápidos:** avisa si van demasiado deprisa o con el pulso alto (más del 82 % de la FC máxima).
+  - **Predicciones:** tiempos para 5 km, 10 km, media y maratón, y previsión para el día de la carrera según la tendencia de mejora.
+
+## 6. Datos y copias de seguridad
+
+- Todo vive en el almacenamiento del iPhone, dentro de la app instalada. Si se borra la app de la pantalla de inicio, se borran los datos.
+- En **Perfil › Tus datos › Descargar copia** se guarda un archivo en la app Archivos. Con **Restaurar copia** se recupera, también en otro móvil. La copia incluye la conexión con Strava: no la compartas.
+- Strava pide en sus condiciones que no se guarden sus datos más de 7 días. Zancada guarda solo un resumen de cada carrera (fecha, distancia, tiempo, pulso, parciales). Es para uso personal del propio corredor con sus propios datos, pero tenlo en cuenta.
+
+## 7. Actualizar la app
+
+Si te paso una versión nueva de `index.html`, súbela al repositorio en GitHub encima de la anterior (**Add file › Upload files**). La próxima vez que el corredor abra la app con conexión, se actualizará sola. Sus datos no se tocan.
