@@ -1,0 +1,47 @@
+name: Publicar
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Descomprimir el zip subido (si hay)
+        run: |
+          ZIP=$(ls *.zip 2>/dev/null | head -n1 || true)
+          [ -z "$ZIP" ] && { echo "No hay zip: se publica tal cual."; exit 0; }
+          mkdir /tmp/nuevo && unzip -q "$ZIP" -d /tmp/nuevo
+          SRC=/tmp/nuevo
+          if [ ! -f "$SRC/index.html" ] && [ "$(ls -A "$SRC" | wc -l)" = 1 ]; then SRC="$SRC/$(ls -A "$SRC")"; fi
+          [ -f "$SRC/index.html" ] || { echo "El zip no contiene index.html"; exit 1; }
+          rm -rf "$SRC/.github"
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name .github -exec rm -rf {} +
+          cp -a "$SRC"/. ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Actualizar la app desde $ZIP"
+          git push
+      - name: Comprobar la app
+        run: |
+          node tests/check-sw.cjs
+          node tests/engine.test.cjs > /tmp/engine.log || { tail -40 /tmp/engine.log; exit 1; }
+          head -1 /tmp/engine.log
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4
