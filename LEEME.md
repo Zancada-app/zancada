@@ -79,6 +79,12 @@ Algunos navegadores bloquean que una página hable directamente con Strava (es u
 - **Desnivel:** eliges el perfil de la carrera (llana, ondulada, con cuestas, de montaña). Ajusta la predicción y la marca objetivo, y mete cuestas en las fases fuertes si la carrera las tiene. El análisis usa el ritmo ajustado por pendiente de Strava.
 - **Añadir entreno:** desde Hoy o Progreso puedes registrar a mano cualquier carrera (fecha, tipo, distancia, tiempo, desnivel, pulso, esfuerzo). Si ese día había sesión, cuenta como hecha. Las competiciones actualizan tus marcas y tus ritmos. Cualquier registro se puede borrar.
 - **Zonas y ritmos que se recalculan solos:** el umbral de pulso se mide en tus tempos, tests y carreras con pulsómetro, y de ahí salen tus zonas. Los ritmos se ajustan con tests, carreras, series y con la relación entre tu pulso y tu ritmo en los rodajes. Los cambios son graduales y se explican en la app.
+- **Estado del día:** cada día con sesión, 4 toques (sueño, piernas, estrés, molestias). Junto con tu carga y la recuperación da una nota de 0 a 100 y un consejo: adelante, suavízala, mejor suave o descansa. En cada sesión, «No estoy al 100 %» la ajusta si estás cansado, vas justo de tiempo, tienes una molestia o estás enfermo.
+- **Carga:** cada entreno se mide con el pulso (TRIMP) si hay pulsómetro, si no con el ritmo, y si no con el esfuerzo percibido. En Progreso verás tu carga de 7 días frente al rango recomendado, el reparto de intensidad de las últimas 4 semanas y avisos si el impacto (km y desnivel) se dispara.
+- **Predicciones realistas:** en media y maratón tienen en cuenta tus tiradas largas y tu volumen. Cada carrera con pulso recibe una nota de rendimiento (80–120 %).
+- **Calor:** si pones tu ciudad y la hora a la que sueles correr, la app consulta la previsión en Open-Meteo (gratuito, solo se envía la ciudad) y ralentiza los ritmos los días de calor.
+- **Fuerza y movilidad:** dos rutinas cortas a la semana (A y B) en días que no estorban a las sesiones duras.
+- **Zapatillas:** kilómetros de cada par según Strava, con aviso a partir de 600 km.
 - **Tiempo disponible:** si indicas un máximo para los días entre semana, las sesiones se acortan para caber en él.
 
 ## 6. Datos y copias de seguridad

@@ -1,6 +1,6 @@
 // Zancada: guarda la app en el móvil para que abra sin conexión.
 // Las peticiones a Strava nunca se guardan en caché.
-const CACHE = 'zancada-v9';
+const CACHE = 'zancada-v10';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './icon-maskable-192.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
