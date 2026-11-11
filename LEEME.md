@@ -75,6 +75,11 @@ Algunos navegadores bloquean que una página hable directamente con Strava (es u
 - **Zonas:** en Progreso › Tus zonas, ritmos de recuperación a series cortas y zonas de pulso Z1–Z5. Pon la FC máxima o la edad en Perfil.
 - **Resumen semanal:** cada lunes, en Hoy, aparece un resumen de la semana pasada y de lo que viene.
 
+- **Mejores marcas:** puedes poner tus marcas de 5 km, 10 km, media y maratón con su antigüedad. Con Strava, la app busca además tus mejores esfuerzos (1 km, 1 milla, 5 km, 10 km, media, maratón) en el último año. La forma de partida sale de la marca que mejor te representa hoy: las antiguas cuentan menos.
+- **Desnivel:** eliges el perfil de la carrera (llana, ondulada, con cuestas, de montaña). Ajusta la predicción y la marca objetivo, y mete cuestas en las fases fuertes si la carrera las tiene. El análisis usa el ritmo ajustado por pendiente de Strava.
+- **Añadir entreno:** desde Hoy o Progreso puedes registrar a mano cualquier carrera (fecha, tipo, distancia, tiempo, desnivel, pulso, esfuerzo). Si ese día había sesión, cuenta como hecha. Las competiciones actualizan tus marcas y tus ritmos. Cualquier registro se puede borrar.
+- **Tiempo disponible:** si indicas un máximo para los días entre semana, las sesiones se acortan para caber en él.
+
 ## 6. Datos y copias de seguridad
 
 - Todo vive en el almacenamiento del iPhone, dentro de la app instalada. Si se borra la app de la pantalla de inicio, se borran los datos.

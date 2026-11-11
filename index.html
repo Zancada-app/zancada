@@ -235,6 +235,9 @@ button:active:not(:disabled),.btn:active,.item:active{transform:scale(.975)}
 .picker .pu{color:var(--muted);font-size:15px;flex:none}
 .pclear{flex:none;width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;font-size:20px;color:var(--muted);background:transparent;border:0}
 .picker:not(.set) .pclear{visibility:hidden}
+.addbtn{min-height:36px;padding:4px 12px;font-size:14px;color:var(--accent);border-color:var(--accent-soft)}
+.mark+.mark{border-top:1px solid var(--line);padding-top:14px}
+.small-seg button{min-height:34px;padding:4px 10px;font-size:13px}
 .tinput{font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .chev{color:var(--muted);font-size:22px;flex:none}
 .note{background:var(--bg);border-radius:10px;padding:10px 12px}
@@ -333,7 +336,22 @@ const PHASE_N={base:'Base',desarrollo:'Desarrollo',pico:'Pico','puesta a punto':
 let state=null;
 function blankState(){return {v:1,profile:null,fitness:null,plan:null,sessions:[],adapt:null,updatedAt:0};}
 
+// La edad cambia la recuperación: progresión más suave, descargas más frecuentes y menos intensidad acumulada
+function ageAdj(pr){
+  const a=pr&&pr.age;
+  if(a>=60) return {band:'60',ramp:1.06,downEvery:3,qMax:1,longMult:0.9,rateMult:0.7,peakMult:0.9};
+  if(a>=50) return {band:'50',ramp:1.08,downEvery:3,qMax:n=>n>=5?2:1,longMult:0.95,rateMult:0.8,peakMult:0.95};
+  if(a&&a<18) return {band:'joven',ramp:1.08,downEvery:4,qMax:1,longMult:0.8,rateMult:1,peakMult:0.75};
+  return {band:null,ramp:1.1,downEvery:4,qMax:2,longMult:1,rateMult:1,peakMult:1};
+}
+function ageNote(pr){
+  const b=ageAdj(pr).band;
+  return b==='60'?'Por tu edad, el plan sube la carga más despacio (6 % por semana como mucho), mete una semana de descarga cada tres y hace una sola sesión de calidad por semana.'
+    :b==='50'?'Por tu edad, el plan sube la carga más despacio (8 % por semana como mucho) y mete una semana de descarga cada tres para que recuperes bien.'
+    :b==='joven'?'Como aún estás creciendo, el plan limita el volumen y hace una sola sesión de calidad por semana.':'';
+}
 function buildCurve(pr,startKm,start,rw,boost){
+  const AG=ageAdj(pr);
   const g=GOALS[pr.goal],L=LEVELS[pr.level];
   let n;
   if(pr.raceDate&&g.dist) n=Math.floor(daysBetween(start,monday(pr.raceDate))/7)+1;
@@ -346,13 +364,13 @@ function buildCurve(pr,startKm,start,rw,boost){
   const rwW=rw!==false&&rw!=null?Math.max(0,Math.min(RW.length-2-rw,b)):0;
   const s2=rwW?Math.max(s,12):s;
   let peak=(g.dist?Math.max(g.peak*L.mult,s2*1.1):s2*1.3)*(1+(boost||0));
-  peak=Math.min(peak,s2*Math.pow(1.1,Math.max(1,b-rwW-1)));
+  peak=Math.min(peak*AG.peakMult,s2*Math.pow(AG.ramp,Math.max(1,b-rwW-1)));
   const curve=[];
   for(let i=0;i<b;i++){
     let km;
     if(i<rwW) km=5+7*clamp((rw+i)/(RW.length-3),0,1);
     else{const bb=b-rwW;const frac=bb<=1?1:(i-rwW)/(bb-1);km=s2+(peak-s2)*frac;}
-    const down=(i%4===3)&&i<b-1;
+    const down=(i%AG.downEvery===AG.downEvery-1)&&i<b-1;
     if(down) km*=0.8;
     const phase=i<Math.ceil(b*0.4)?'base':(g.dist&&i>=b-2&&b>=5?'pico':'desarrollo');
     curve.push({km,phase,down});
@@ -378,8 +396,10 @@ function buildWeek(i){
   const isLast=i===plan.curve.length-1;
   const rw=isRunWalk(i);
   let qn=n>=5&&pr.level!=='nuevo'?2:n>=3?1:0;
+  const AG=ageAdj(pr),qMax=typeof AG.qMax==='function'?AG.qMax(n):AG.qMax;
   const G=plan.goal;
   if(G&&G.needed>=0.03&&n>=4&&pr.level!=='nuevo'&&i>=2) qn=Math.max(qn,2);
+  qn=Math.min(qn,qMax);
   if(pr.level==='nuevo'&&i<3) qn=0;
   if(c.down||c.phase==='puesta a punto') qn=Math.min(qn,1);
   if(ad.intensity<=-2) qn=Math.min(qn,1);
@@ -393,16 +413,23 @@ function buildWeek(i){
     if(best!=null&&bs>=2) q.push(best);
   }
   q.sort((a,b)=>a-b);
-  const rot={base:['fartlek','cuestas'],desarrollo:['series','tempo'],pico:['ritmo','series'],'puesta a punto':['ritmo']}[c.phase];
+  let rot={base:['fartlek','cuestas'],desarrollo:['series','tempo'],pico:['ritmo','series'],'puesta a punto':['ritmo']}[c.phase];
+  const hills=pr.hills!==false,hilly=(pr.raceElev||0)>=8&&g.dist;
+  if(!hills) rot=rot.map(t=>t==='cuestas'?'tempo':t);
+  else if(hilly&&(c.phase==='desarrollo'||c.phase==='pico')) rot=[rot[0],'cuestas',rot[1]]; // carrera con desnivel: cuestas también en las fases fuertes
   const qTypes=q.map((d,k)=>rot[(i+k)%rot.length]);
   if(c.down&&i>=3&&qTypes.length&&!isLast) qTypes[0]='test';
   const share={1:1,2:0.5,3:0.4,4:0.33,5:0.3,6:0.27,7:0.25}[n];
-  let longKm=Math.min(km*share,g.longCap*L.longMult);
-  const qKm=qTypes.map(t=>t==='test'?8:Math.max(5,km*0.18));
+  let longKm=Math.min(km*share,g.longCap*L.longMult*AG.longMult);
+  // tiempo disponible entre semana: limita los km de los días que no son la tirada larga
+  const p=state.fitness.p,maxMin=+pr.maxMin||0;
+  const capE=maxMin?maxMin*60/(p*1.32):99,capQ=maxMin?maxMin*60/(p*1.2):99;
+  const qKm=qTypes.map(t=>Math.min(t==='test'?8:Math.max(5,km*0.18),capQ));
   const easyDays=others.filter(d=>!q.includes(d));
   const rem=km-longKm-qKm.reduce((a,b)=>a+b,0);
-  const easyKm=easyDays.length?Math.min(Math.max(3,rem/easyDays.length),Math.max(3,longKm*0.8)):0;
-  if(!easyDays.length&&rem>0) longKm=Math.min(longKm+rem*0.5,g.longCap*L.longMult);
+  let easyKm=easyDays.length?Math.min(Math.max(3,rem/easyDays.length),Math.max(3,longKm*0.8)):0;
+  if(easyKm>capE){const lost=(easyKm-capE)*easyDays.length;easyKm=Math.max(2,capE);longKm=Math.min(longKm+lost*0.5,g.longCap*L.longMult*AG.longMult);}
+  if(!easyDays.length&&rem>0) longKm=Math.min(longKm+rem*0.5,g.longCap*L.longMult*AG.longMult);
   const mk=(d,type,k,extra)=>Object.assign({id:uid(),date:addDays(wkStart,d),week:i,type,km:r05(k),status:'pending',load:ad.load},extra||{});
   let out=[];
   if(rw){
@@ -427,29 +454,35 @@ function buildWeek(i){
     out.push(mk(dow(rd),'race',g.dist,{date:rd}));
     out[out.length-1].date=rd;
   }
+  // los km mostrados son la suma real de los bloques (calentamiento, series, recuperaciones…)
+  out.forEach(s=>{s.budget=s.km;if(['series','tempo','ritmo','fartlek','cuestas','test'].includes(s.type))s.km=r05(describe(s).estKm);});
   return out.filter(s=>s.date>=today());
 }
 
 /* ---------- descripción de cada sesión con ritmos actuales ---------- */
 /* ---------- Zonas de pulso ---------- */
 const HR_Z=[{n:1,name:'Recuperación',lo:0,hi:0.70},{n:2,name:'Suave',lo:0.70,hi:0.80},{n:3,name:'Moderado',lo:0.80,hi:0.87},{n:4,name:'Umbral',lo:0.87,hi:0.93},{n:5,name:'Máximo',lo:0.93,hi:1}];
+function hrBounds(n){ // [mín, máx] en ppm de la zona n (1–5)
+  const cz=state.strava&&state.strava.hrZones;
+  if(cz) return [cz[n-1].min||0,cz[n-1].max>0?cz[n-1].max:null];
+  const hm=hrMaxNow();if(!hm) return null;
+  return [n===1?0:Math.round(HR_Z[n-1].lo*hm),n===5?null:Math.round(HR_Z[n-1].hi*hm)];
+}
 function hrText(z1,z2){
-  const hm=hrMaxNow();
-  const zs=z1===z2?`Z${z1}`:`Z${z1}–Z${z2}`;
-  if(!hm) return zs;
-  const lo=Math.round(HR_Z[z1-1].lo*hm),hi=Math.round(HR_Z[z2-1].hi*hm);
-  return z1===1?`${zs} (<${hi} ppm)`:z2===5?`${zs} (>${lo} ppm)`:`${zs} (${lo}–${hi} ppm)`;
+  const zs=z1===z2?`Z${z1}`:`Z${z1}–Z${z2}`,a=hrBounds(z1),b=hrBounds(z2);
+  if(a&&b) return z1===1&&b[1]?`${zs} (<${b[1]} ppm)`:!b[1]?`${zs} (>${a[0]} ppm)`:`${zs} (${a[0]}–${b[1]} ppm)`;
+  return zs;
 }
 const paceR=(lo,hi)=>Math.abs(hi-lo)<4?fp((lo+hi)/2):`${fp(lo)}–${fp(hi)}`;
 
 /* ---------- Cada sesión: bloques con distancia o tiempo, ritmo y pulso ---------- */
 function describe(s){
   const p=state.fitness.p,pr=state.profile,g=GOALS[pr.goal],it=state.adapt.intensity;
-  const qf=1-it*0.01,km=s.km;
+  const qf=1-it*0.01,km=s.budget||s.km;
   const pq=state.plan?trainP():p, rpN=state.plan?racePaceNow():{pace:p*g.rf,goal:false};
-  const E={lo:p*1.22,hi:p*1.34};             // suave
-  const WU={lo:p*1.26,hi:p*1.40};            // calentar / enfriar
-  const r={title:TYPES[s.type].n,rpe:3,lo:E.lo,hi:E.hi,pf:1.28,blocks:[],tips:[],dur:null};
+  const E={lo:p*1.25,hi:p*1.40};             // suave (equivale al ritmo E de Daniels)
+  const WU={lo:p*1.30,hi:p*1.45};            // calentar / enfriar
+  const r={title:TYPES[s.type].n,rpe:3,lo:E.lo,hi:E.hi,pf:1.32,blocks:[],tips:[],dur:null};
   const B=(o)=>r.blocks.push(o);
   const cal=(d,extra)=>B({k:'cal',t:'Calentamiento',dist:d,lo:WU.lo,hi:WU.hi,z:[1,2],text:extra||''});
   const cool=d=>B({k:'cool',t:'Vuelta a la calma',dist:d,lo:WU.lo,hi:WU.hi*1.05,z:[1,1]});
@@ -460,9 +493,9 @@ function describe(s){
       r.tips.push('Si el pulso sube de Z2, baja el ritmo aunque parezca muy lento.');
       break;
     case 'long':{
-      Object.assign(r,{rpe:5,hi:p*1.36,pf:1.29});
+      Object.assign(r,{rpe:5,hi:p*1.40,pf:1.32});
       const fin=s.rpFinish?Math.max(2,Math.min(6,Math.round(km*0.2))):0;
-      B({k:'main',t:'Tirada',dist:km-fin,lo:E.lo,hi:p*1.36,z:[2,2],text:'Constante y tranquilo.'});
+      B({k:'main',t:'Tirada',dist:km-fin,lo:E.lo,hi:E.hi,z:[2,2],text:(pr.raceElev||0)>=8&&g.dist?'Si puedes, por un recorrido con subidas parecido al de tu carrera.':'Constante y tranquilo.'});
       if(fin) B({k:'main',t:'Final a ritmo de carrera',dist:fin,lo:rpN.pace*0.99,hi:rpN.pace*1.01,z:[3,3]});
       if(km>=14) r.tips.push('Lleva agua o bebida si vas a pasar de 75 minutos.');
       r.tips.push('Importa el tiempo en pie, no la velocidad.');
@@ -516,7 +549,7 @@ function describe(s){
       r.tips.push('Elige un recorrido llano. Con el tiempo de los 5 km recalculo todos tus ritmos.');
       break;
     case 'race':{
-      const T=raceTime(p,g.dist),gi=state.plan?goalInfo():null;
+      const pen=elevPen(pr),T=raceTime(p,g.dist)*(1+pen),gi=state.plan?goalInfo():null;
       const go=gi&&gi.target>=T*0.985?gi.target:T,pace=go/g.dist;
       Object.assign(r,{rpe:9,pf:pace/p,lo:pace*0.99,hi:pace*1.01});
       if(g.dist<=10){cal(2,'Más 4 rectas cortas 10 minutos antes de la salida.');}
@@ -525,6 +558,7 @@ function describe(s){
       B({k:'main',t:'Salida',dist:first,lo:pace*1.01,hi:pace*1.02,z:[3,4],text:'Algo más lento: no te dejes llevar por la gente.'});
       B({k:'main',t:'Carrera',dist:g.dist-first,lo:r.lo,hi:r.hi,z:[4,5],text:`Meta prevista: ${ft(go)}.`});
       if(gi&&go!==gi.target) r.tips.push(`Tu objetivo era ${ft(gi.target)}, pero tu forma de hoy da para ${ft(T)}. Sal a ${fp(T/g.dist)} /km y, si a mitad de carrera vas sobrado, aprieta.`);
+      if(pen>0.008) r.tips.push(`Recorrido ${elevName(pr.raceElev).toLowerCase()}: es un ritmo medio. En las subidas ve por esfuerzo, no por ritmo, y recupera en las bajadas.`);
       r.tips.push('Nada nuevo hoy: ni zapatillas, ni geles, ni desayuno.');
       break;}
     case 'runwalk':{
@@ -537,30 +571,114 @@ function describe(s){
       r.tips.push('Si un día cuesta, repite la semana anterior: no hay prisa.');
       break;}
   }
-  // duración estimada
+  // que quepa en el tiempo disponible entre semana: se acorta calentamiento, vuelta a la calma, rodaje y, por último, repeticiones
+  const cap=+(pr.maxMin||0);
+  if(cap&&!['long','race','runwalk','test','easy'].includes(s.type)){
+    let guard=0;
+    while(blocksLen(r.blocks,p,WU).sec/60>cap&&guard++<60){
+      const wu=r.blocks.find(b=>b.k==='cal'&&b.dist>1);if(wu){wu.dist=Math.max(1,wu.dist-0.5);continue;}
+      const cd=r.blocks.find(b=>b.k==='cool'&&b.dist>1);if(cd){cd.dist=Math.max(1,cd.dist-0.5);continue;}
+      const wt=r.blocks.find(b=>b.k==='cal'&&b.dur>300);if(wt){wt.dur-=120;continue;}
+      const ct=r.blocks.find(b=>b.k==='cool'&&b.dur>300);if(ct){ct.dur-=120;continue;}
+      const ez=r.blocks.find(b=>b.k==='main'&&!b.reps&&b.lo&&b.lo>=E.lo*0.99&&b.dist>1);if(ez){ez.dist=Math.max(1,ez.dist-0.5);continue;}
+      const st=r.blocks.findIndex(b=>b.k==='strides');if(st>=0){r.blocks.splice(st,1);continue;}
+      const m=r.blocks.find(b=>b.k==='main'&&b.reps>2);if(m){m.reps--;continue;}
+      const mc=r.blocks.find(b=>b.k==='main'&&(b.reps||1)<=2&&b.dist>1.5);if(mc){mc.dist=Math.max(1.5,mc.dist-0.5);continue;}
+      const m2=r.blocks.find(b=>b.k==='main'&&b.reps===2);if(m2){m2.reps=1;continue;}
+      break;
+    }
+  }
+  const L2=blocksLen(r.blocks,p,WU);
+  r.dur=Math.round(L2.sec/60);r.estKm=L2.dist;
+  r.lines=r.blocks.map(blockText).concat(r.tips);
+  return r;
+}
+function blocksLen(blocks,p,WU){
   let sec=0,dist=0;
-  r.blocks.forEach(b=>{
+  blocks.forEach(b=>{
     const n=b.reps||1,mid=b.lo&&b.hi?(b.lo+b.hi)/2:p*1.45;
     const one=b.dur||(b.dist||0)*mid;
     sec+=n*one;dist+=n*(b.dist||(b.dur?b.dur/mid:0));
     if(b.reps&&b.reps>1){sec+=(b.reps-1)*(b.recDur||(b.recDist||0)*WU.hi);dist+=(b.reps-1)*(b.recDist||(b.recDur?b.recDur/(WU.hi*1.1):0));}
   });
-  r.dur=Math.round(sec/60);r.estKm=dist;
-  r.lines=r.blocks.map(blockText).concat(r.tips);
-  return r;
+  return {sec,dist};
 }
+// km mostrados de las sesiones pendientes = suma real de sus bloques con los ritmos y ajustes actuales
+const STRUCT=['series','tempo','ritmo','fartlek','cuestas','test'];
+function refreshKm(){if(!state.plan)return;state.sessions.forEach(s=>{if(s.status==='pending'&&STRUCT.includes(s.type)){if(!s.budget)s.budget=s.km;s.km=r05(describe(s).estKm);}});}
 function blockText(b){
   const len=b.dist?fm(b.dist):b.dur?(b.dur>=60?`${Math.round(b.dur/60)} min`:`${b.dur} s`):'';
-  const what=b.reps?`${b.reps} × ${len}`:len;
+  const what=b.reps>1?`${b.reps} × ${len}`:len;
   return `${b.t}: ${what}${b.lo?` a ${paceR(b.lo,b.hi)} /km`:''}${b.rec?`, recuperando ${b.rec}`:''}.`;
 }
 function blocksHTML(d){
   return `<ol class="blocks">${d.blocks.map(b=>{
     const len=b.dist?fm(b.dist):b.dur?(b.dur>=60?`${Math.round(b.dur/60)} min`:`${b.dur} s`):'';
-    return `<li class="blk ${b.k}"><div class="row between" style="align-items:baseline"><span class="bt">${esc(b.t)}</span><span class="bv num">${b.reps?`${b.reps} × `:''}${len}</span></div>
+    return `<li class="blk ${b.k}"><div class="row between" style="align-items:baseline"><span class="bt">${esc(b.t)}</span><span class="bv num">${b.reps>1?`${b.reps} × `:''}${len}</span></div>
       <div class="bm num">${b.lo?`<span>${paceR(b.lo,b.hi)} /km</span>`:''}${b.z?`<span>${hrText(b.z[0],b.z[1])}</span>`:''}${b.rec?`<span>rec. ${esc(b.rec)}</span>`:''}</div>
       ${b.text?`<div class="small muted">${esc(b.text)}</div>`:''}</li>`;}).join('')}</ol>`;
 }
+
+/* =========================================================
+   Mejores marcas (manuales y de Strava) y desnivel
+   ========================================================= */
+const MARK_D=[[5,'5 km'],[10,'10 km'],[21.0975,'Media maratón'],[42.195,'Maratón']];
+const AGE_OPTS=[[30,'Este último mes'],[90,'Hace 1–3 meses'],[180,'Hace 3–6 meses'],[365,'Hace 6–12 meses'],[730,'Hace más de un año']];
+const PR_KEYS={'1k':1,'1 mile':1.609344,'5k':5,'10k':10,'Half-Marathon':21.0975,'Marathon':42.195};
+const PR_NAME={'1k':'1 km','1 mile':'1 milla','5k':'5 km','10k':'10 km','Half-Marathon':'Media maratón','Marathon':'Maratón'};
+const markP=(t,d)=>t*Math.pow(5/d,1.06)/5;
+// una marca antigua cuenta menos: +1 % de ritmo por mes a partir del mes y medio, hasta un 10 %
+function decayP(p,date){const days=date?Math.max(0,daysBetween(date,today())):60;return p*(1+clamp((days/30.4-1.5)*0.01,0,0.10));}
+function stravaPRs(){
+  const s=state&&state.strava;if(!s||!s.runs) return [];
+  const best={};
+  s.runs.forEach(r=>{
+    (r.be||[]).forEach(b=>{if(!(b.n in PR_KEYS)||!(b.t>0))return;const cur=best[b.n];if(!cur||b.t<cur.t)best[b.n]={key:b.n,d:PR_KEYS[b.n],t:b.t,date:r.date,id:r.id,src:'strava'};});
+    if(r.race&&r.km>=4.9){
+      const key=Object.keys(PR_KEYS).find(k=>PR_KEYS[k]>=5&&Math.abs(r.km-PR_KEYS[k])/PR_KEYS[k]<0.03);
+      if(key){const cur=best[key];if(!cur||r.sec<cur.t)best[key]={key,d:PR_KEYS[key],t:r.sec,date:r.date,id:r.id,src:'strava',race:true};}
+    }
+  });
+  return Object.values(best).sort((a,b)=>a.d-b.d);
+}
+function allMarks(pr){
+  const out=[];
+  ((pr&&pr.marks)||[]).forEach(m=>out.push({d:m.d,t:m.t,date:m.date,src:'manual'}));
+  stravaPRs().forEach(m=>{if(m.d>=1.6)out.push(m);});
+  return out.filter(m=>m.t>0&&m.t/m.d>150&&m.t/m.d<720);
+}
+function bestMark(pr){
+  let best=null;
+  allMarks(pr).forEach(m=>{const p=decayP(markP(m.t,m.d),m.date);if(!best||p<best.p)best=Object.assign({},m,{p});});
+  return best;
+}
+function marksFromDraft(d){
+  const out=[];
+  MARK_D.forEach(([dist],i)=>{const t=parseTime(d['mt'+i]);if(t){out.push({d:dist,t,date:addDays(today(),-(+d['ma'+i]||90))});}});
+  return out;
+}
+const markName=d=>Math.abs(d-1.609344)<0.01?'1 milla':Math.abs(d-1)<0.01?'1 km':(MARK_D.find(x=>Math.abs(x[0]-d)<0.01)||[0,`${fk(d)} km`])[1];
+const fdMark=dt=>dt?fdShort(dt)+(pd(dt).getFullYear()!==pd(today()).getFullYear()?' '+pd(dt).getFullYear():''):'';
+function marksCard(){
+  const pr=state.profile,man=(pr.marks||[]),sp=stravaPRs(),b=bestMark(pr);
+  const rows=[];
+  MARK_D.forEach(([d,n])=>{
+    const m=man.find(x=>Math.abs(x.d-d)<0.01),s=sp.find(x=>Math.abs(x.d-d)<0.01);
+    const pick=[m&&{...m,src:'manual'},s].filter(Boolean).sort((a,b)=>a.t-b.t)[0];
+    if(pick) rows.push(`<div class="zrow"><div><b>${n}</b><br><span class="small muted">${pick.src==='strava'?(pick.race?'Competición en Strava':'Mejor esfuerzo en Strava'):'Introducida por ti'}${pick.date?' · '+fdMark(pick.date):''}</span></div><span class="num zv">${ft(pick.t)}</span></div>`);
+  });
+  sp.filter(x=>x.d<5).sort((a,b)=>b.d-a.d).forEach(x=>rows.unshift(`<div class="zrow"><div><b>${PR_NAME[x.key]}</b><br><span class="small muted">Mejor esfuerzo en Strava · ${fdMark(x.date)}</span></div><span class="num zv">${ft(x.t)}</span></div>`));
+  return `<section class="card stack" style="gap:0"><div class="row between" style="margin-bottom:6px"><h3>Tus mejores marcas</h3><button type="button" class="ghost" style="min-height:36px;padding:4px 12px;font-size:14px" data-act="wedit" data-step="marks">Editar</button></div>
+    ${rows.join('')||'<p class="small muted">Aún no hay marcas. Añádelas en Perfil o conecta Strava.</p>'}
+    ${b?`<p class="small muted" style="margin-top:8px">La que mejor refleja tu forma ahora es la de ${markName(b.d).toLowerCase()}${b.date?` (${fdMark(b.date)})`:''}: equivale a ${ft(b.p*5)} en 5 km. Las marcas antiguas cuentan menos.</p>`:''}</section>`;
+}
+
+/* ---------- Desnivel ---------- */
+const ELEV=[[2,'Llana'],[8,'Ondulada'],[15,'Con cuestas'],[30,'De montaña']];
+// fracción de tiempo extra de un recorrido con subidas y bajadas: se pierde ~3,3 % por cada 1 % de pendiente al subir y se recupera ~55 % al bajar
+const elevPen=pr=>pr&&pr.raceElev&&GOALS[pr.goal]&&GOALS[pr.goal].dist?0.001485*pr.raceElev:0;
+const gapFromElev=(sec,km,elev)=>km?(sec/km)/(1+0.001485*(elev||0)/km):null;
+const elevName=v=>(ELEV.find(x=>x[0]===+v)||ELEV[0])[1];
 
 /* =========================================================
    Marca objetivo: viabilidad, trayectoria y previsión
@@ -571,12 +689,13 @@ const p5From=(T,dist)=>T*Math.pow(5/dist,1.06)/5;
 const TARGET_PH={'5k':'25:00','10k':'50:00','21k':'1:50:00','42k':'3:59:00'};
 function goalEval(pr,p0,nWeeks){
   const g=GOALS[pr.goal];if(!g.dist||!pr.targetTime) return null;
-  const pG=p5From(pr.targetTime,g.dist);
+  const pen=elevPen(pr);
+  const pG=p5From(pr.targetTime/(1+pen),g.dist); // objetivo pasado a terreno llano
   const build=Math.max(1,nWeeks-g.taper);
-  const possible=Math.min(0.15,RATE[pr.level]*build);
+  const possible=Math.min(0.15,RATE[pr.level]*ageAdj(pr).rateMult*build);
   const needed=1-pG/p0;
   const status=needed<=0?'ya':needed<=possible?'alcanzable':needed<=possible*1.4?'ambicioso':'poco realista';
-  return {p0,pG,needed,possible,status,build,current:raceTime(p0,g.dist),realistic:raceTime(p0*(1-possible),g.dist)};
+  return {p0,pG,needed,possible,status,build,pen,current:raceTime(p0,g.dist)*(1+pen),realistic:raceTime(p0*(1-possible),g.dist)*(1+pen)};
 }
 function goalInfo(){
   const pr=state.profile,pl=state.plan;
@@ -587,12 +706,13 @@ function goalInfo(){
   const frac=clamp(weeksIn/G.build,0,1);
   const expected=G.p0*(1-eff*frac);
   const diff=p/expected-1;
-  const pred=raceTime(p,g.dist);
+  const pen=elevPen(pr);
+  const pred=raceTime(p,g.dist)*(1+pen);
   const rem=Math.max(0,G.build-weeksIn);
-  const forecast=raceTime(p*(1-Math.min(0.15,RATE[pr.level]*0.8*rem)),g.dist);
+  const forecast=raceTime(p*(1-Math.min(0.15,RATE[pr.level]*ageAdj(pr).rateMult*0.8*rem)),g.dist)*(1+pen);
   const prob=forecast<=pr.targetTime?'alta':forecast<=pr.targetTime*1.02?'media':'baja';
   const track=pred<=pr.targetTime?'cumplido':prob==='alta'&&diff<-0.01?'adelantado':prob==='baja'||diff>0.015?'por detrás':'en camino';
-  const T0=G.current,Tt=pr.targetTime,Texp=raceTime(expected,g.dist);
+  const T0=G.current,Tt=pr.targetTime,Texp=raceTime(expected,g.dist)*(1+pen);
   const prog=T0>Tt?clamp((T0-pred)/(T0-Tt),0,1):1, progExp=T0>Tt?clamp((T0-Texp)/(T0-Tt),0,1):1;
   return {G,g,pred,forecast,expected,track,prob,prog,progExp,target:Tt};
 }
@@ -606,7 +726,8 @@ function racePaceNow(){ // ritmo de carrera por km para las sesiones de ritmo y 
   const cur=raceTime(p,g.dist||5)/(g.dist||5);
   const gi=goalInfo();
   if(!gi) return {pace:p*g.rf,cur,goal:false};
-  const tgt=(gi.G.status==='poco realista'?Math.max(gi.G.realistic,gi.forecast):pr.targetTime)/g.dist;
+  // en los entrenos se usa el ritmo equivalente en llano
+  const tgt=(gi.G.status==='poco realista'?Math.max(gi.G.realistic,gi.forecast):pr.targetTime)/(1+elevPen(pr))/g.dist;
   return {pace:Math.max(tgt,cur*0.96),cur,goal:true,tgt};
 }
 const TRACK_CLS={'cumplido':'ok','adelantado':'ok','en camino':'ok','por detrás':'w'};
@@ -629,22 +750,20 @@ function goalCheck(){
   return true;
 }
 function draftP(d){
-  const g=GOALS[d.goal];
-  const t=parseTime(d.refTime),rd=+d.refDist;
-  if(t&&rd) return t*Math.pow(5/rd,1.06)/5;
-  if(state.fitness&&state.profile) return state.fitness.p;
-  const b=typeof bestImplied==='function'?(bestImplied(42)||bestImplied(120)):null;
+  if(state.fitness&&state.profile) {const bm=bestMark({marks:marksFromDraft(d)});return bm&&bm.src==='manual'&&bm.p<state.fitness.p*0.97?bm.p:state.fitness.p;}
+  const b=bestMark({marks:marksFromDraft(d)});
   return b?b.p:LEVELS[d.level].p;
 }
 function goalHint(d){
   const g=GOALS[d.goal];if(!g.dist) return '';
   const p0=draftP(d);
   const weeks=d.raceDate?Math.floor(daysBetween(monday(today()),monday(d.raceDate))/7)+1:+d.weeks||g.defWeeks;
-  const cur=`Con tu forma actual harías unos <b class="num">${ft(raceTime(p0,g.dist))}</b>.`;
+  const pen=d.hasDate||true?0.001485*(+d.raceElev||0):0;
+  const cur=`Con tu forma actual harías unos <b class="num">${ft(raceTime(p0,g.dist)*(1+pen))}</b>${pen>0.005?' en ese recorrido':''}.`;
   const T=parseTime(d.targetTime);
   if(!T) return cur+' Si pones una marca objetivo, el plan se construye para llegar a ella.';
   if(T/g.dist<150||T/g.dist>720) return 'Escribe la marca como 45:00 o 1:45:00.';
-  const G=goalEval({goal:d.goal,level:d.level,targetTime:T},p0,weeks);
+  const G=goalEval({goal:d.goal,level:d.level,targetTime:T,raceElev:+d.raceElev||0,age:+d.age||null},p0,weeks);
   const pct=(G.needed*100).toFixed(1).replace('.',',');
   return cur+' '+({
     'ya':'Tu forma ya da para esa marca: puedes ponerte un objetivo más ambicioso.',
@@ -652,6 +771,11 @@ function goalHint(d){
     'ambicioso':`Mejorar un ${pct} % en ${weeks} semanas es ambicioso: el plan tendrá más volumen y calidad.`,
     'poco realista':`Mejorar un ${pct} % en ${weeks} semanas es poco realista: lo razonable sería unos <b class="num">${ft(G.realistic)}</b>. Puedes mantenerlo, pero el ritmo de carrera se entrenará con una referencia alcanzable.`
   })[G.status];
+}
+function markHint(d){
+  const bm=bestMark({marks:marksFromDraft(d)});
+  if(!bm) return 'Sin marcas, empiezo con una estimación según tu nivel y la ajusto con tus primeros entrenos.';
+  return `Con ${allMarks({marks:marksFromDraft(d)}).length>1?'estas marcas':'esta marca'}, tu forma estimada hoy es <b class="num">${ft(bm.p*5)}</b> en 5 km y <b class="num">${ft(raceTime(bm.p,10))}</b> en 10 km. Se basa sobre todo en la de ${markName(bm.d).toLowerCase()}.`;
 }
 function goalCard(){
   const gi=goalInfo();if(!gi) return '';
@@ -673,12 +797,12 @@ function curWeek(){return Math.floor(daysBetween(state.plan.start,monday(today()
 function createPlan(pr,keep){
   const td=today();
   const old=keep&&state.profile?state:null;
-  const refChanged=pr.refDist&&pr.refTime&&(!old||old.profile.refTime!==pr.refTime||old.profile.refDist!==pr.refDist);
-  let p=old?old.fitness.p:LEVELS[pr.level].p;
-  if(!old&&!(pr.refDist&&pr.refTime)) p=LEVELS[pr.level].p;
-  if(!old&&!refChanged&&typeof bestImplied==='function'){const b=bestImplied(42)||bestImplied(120);if(b)p=b.p;}
-  if(refChanged) p=pr.refTime*Math.pow(5/pr.refDist,1.06)/5;
-  if(old&&old.profile.level!==pr.level&&!refChanged&&!state.sessions.some(s=>s.status==='done')) p=LEVELS[pr.level].p;
+  if(pr.refDist&&pr.refTime&&!pr.marks) pr.marks=[{d:pr.refDist,t:pr.refTime,date:addDays(td,-30)}]; // datos de versiones anteriores
+  const marksChanged=JSON.stringify(pr.marks||[])!==JSON.stringify((old&&old.profile.marks)||[]);
+  const bm=bestMark(pr);
+  let p=old?old.fitness.p:(bm?bm.p:LEVELS[pr.level].p);
+  if(old&&marksChanged&&bm&&bm.src==='manual') p=bm.p; // marcas nuevas introducidas por el corredor
+  if(old&&!bm&&old.profile.level!==pr.level&&!state.sessions.some(s=>s.status==='done')) p=LEVELS[pr.level].p;
   const hist=old?old.fitness.history.slice():[];
   if(!old||p!==old.fitness.p) hist.push({date:td,p});
   state.profile=pr;
@@ -706,6 +830,7 @@ function createPlan(pr,keep){
     'ambicioso':`Objetivo ${ft(pr.targetTime)}: hoy harías ${ft(G.current)}. Es ambicioso (${(G.needed*100).toFixed(1).replace('.',',')} %), así que el plan lleva más volumen${pr.days.length>=4&&pr.level!=='nuevo'?' y dos sesiones de calidad por semana':'. Con '+pr.days.length+' días por semana solo cabe una sesión de calidad: un cuarto día te acercaría más'}.`,
     'poco realista':`Objetivo ${ft(pr.targetTime)}: hoy harías ${ft(G.current)} y en este plazo lo razonable es unos ${ft(G.realistic)}. Entreno el ritmo de carrera con esa referencia y lo iré acercando si mejoras más rápido.`
   }[G.status]);
+  if(ageNote(pr)&&!old) addEvent('info',ageNote(pr));
   const nW=state.plan.curve.length;
   if((pr.goal==='42k'&&(pr.weeklyKm<25&&nW<20||nW<12))||(pr.goal==='21k'&&pr.weeklyKm<10&&nW<12))
     addEvent('down',`Aviso: ${nW} semanas es poco margen para ${g.name.toLowerCase()} desde tu volumen actual. El plan sube la carga con prudencia y quizá no llegue al volumen ideal; si puedes, elige una carrera más corta o más lejana.`);
@@ -717,10 +842,11 @@ function regenerate(){
   for(let i=Math.max(cw+1,0);i<state.plan.curve.length;i++) state.sessions.push(...buildWeek(i));
   state.sessions.forEach(s=>{
     if(s.status==='pending'&&s.week===cw&&s.date>td&&!['race','test','runwalk'].includes(s.type)&&s.load){
-      s.km=r05(s.km*state.adapt.load/s.load);s.load=state.adapt.load;
+      const f=state.adapt.load/s.load;if(s.budget)s.budget=r05(s.budget*f);s.km=r05(s.km*f);s.load=state.adapt.load;
     }
   });
   applyEasyUntil(state.sessions);
+  refreshKm();
   sortSessions();
 }
 
@@ -738,6 +864,7 @@ function setFitness(np,why,force){
   }
   state.fitness.p=np;
   state.fitness.history.push({date:today(),p:np});
+  if(typeof refreshKm==='function'&&state.plan) refreshKm();
   const d=Math.round((old-np)*5);
   addEvent(np<old?'up':'down',`${why} Tu 5 km estimado pasa de ${ft(old*5)} a ${ft(np*5)} (${d>0?'−':'+'}${ft(Math.abs(d))}). Todos los ritmos se han actualizado.`);
   return true;
@@ -748,7 +875,7 @@ function _logDone(s,log){
   s.status='done';
   s.log=Object.assign({at:Date.now()},log);
   s.rpeExp=d.rpe;s.snap={title:d.title,lo:d.lo,hi:d.hi,rpe:d.rpe,km:s.km,main:d.blocks.filter(b=>b.k==='main').map(b=>({t:b.t,reps:b.reps||1,dist:b.dist||null,dur:b.dur||null,lo:b.lo,hi:b.hi}))};
-  const pace=log.km&&log.time?log.time/log.km:null;
+  const pace=log.gap||(log.km&&log.time?gapFromElev(log.time,log.km,log.elev):null);
   // 1) Test o carrera: actualiza la forma directamente
   if((s.type==='test'||s.type==='race')&&log.time){
     const dist=log.km||(s.type==='test'?5:s.km);
@@ -952,9 +1079,13 @@ function addDetail(r,a){
   r.detail=true;
   if(a.perceived_exertion) r.rpe=a.perceived_exertion;
   r.be=(a.best_efforts||[]).map(b=>({n:b.name,d:b.distance,t:b.moving_time||b.elapsed_time})).filter(b=>b.t>0);
-  const lp=l=>({km:(l.distance||0)/1000,sec:l.moving_time||l.elapsed_time||0,hr:l.average_heartrate||null});
+  const lp=l=>({km:(l.distance||0)/1000,sec:l.moving_time||l.elapsed_time||0,hr:l.average_heartrate||null,
+    gap:l.average_grade_adjusted_speed>0?1000/l.average_grade_adjusted_speed:null,el:l.elevation_difference!=null?l.elevation_difference:(l.total_elevation_gain!=null?l.total_elevation_gain:null)});
   r.laps=(a.laps||[]).map(lp).filter(l=>l.km>0);
   r.splits=(a.splits_metric||[]).map(lp).filter(l=>l.km>0);
+  // ritmo ajustado por pendiente (GAP de Strava); si no viene, se estima con el desnivel
+  const gs=r.splits.filter(x=>x.gap);
+  r.gap=gs.length>=Math.max(1,r.splits.length*0.6)?gs.reduce((t,x)=>t+x.gap*x.km,0)/gs.reduce((t,x)=>t+x.km,0):gapFromElev(r.sec,r.km,r.elev);
 }
 let syncing=false;
 async function stravaSync(){
@@ -962,7 +1093,7 @@ async function stravaSync(){
   if(!s.tokens||syncing) return null;
   syncing=true;setSyncUI('Sincronizando con Strava…');
   try{
-    const after=Math.floor(s.lastSync?s.lastSync/1000-4*86400:Date.now()/1000-120*86400);
+    const after=Math.floor(s.lastSync?s.lastSync/1000-4*86400:Date.now()/1000-365*86400);
     let list=[];
     for(let page=1;page<=5;page++){
       const arr=await api(`/athlete/activities?after=${after}&per_page=100&page=${page}`);
@@ -977,10 +1108,16 @@ async function stravaSync(){
       else{s.runs.push(toRun(a));added++;}
     });
     s.runs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
-    const need=s.runs.filter(r=>!r.detail).slice(-30).reverse();
+    // detalle: las 30 más recientes y las más rápidas (candidatas a mejor marca)
+    const recent=s.runs.filter(r=>!r.detail).slice(-30);
+    const fastest=s.runs.filter(r=>!r.detail&&r.km>=4.8&&!recent.includes(r)).sort((a,b)=>a.sec/a.km-b.sec/b.km).slice(0,15);
+    const need=recent.reverse().concat(fastest);
     for(const r of need){
       try{addDetail(r,await api(`/activities/${r.id}`));}
       catch(e){if(/limita/.test(e.message))break;}
+    }
+    if(!s.zonesAt||Date.now()-s.zonesAt>7*864e5){
+      try{const z=await api('/athlete/zones');const hz=z&&z.heart_rate;if(hz&&hz.custom_zones&&Array.isArray(hz.zones)&&hz.zones.length===5)s.hrZones=hz.zones.map(x=>({min:x.min,max:x.max}));else s.hrZones=null;s.zonesAt=Date.now();}catch(e){}
     }
     const mx=Math.max(0,...s.runs.map(r=>r.hrMax||0));
     if(mx>120&&mx<230) s.hrMax=mx;
@@ -1017,7 +1154,7 @@ function workPaceOf(r){
 function runLog(r,x){
   const d=describe(x);
   const hrR=rpeFromHR(r.hr);
-  const log={km:Math.round(r.km*100)/100,time:r.sec,hr:r.hr,strava:r.id,
+  const log={km:Math.round(r.km*100)/100,time:r.sec,hr:r.hr,strava:r.id,elev:r.elev,gap:r.gap||null,
     rpe:r.rpe||hrR||d.rpe,rpeSrc:r.rpe?'strava':hrR?'fc':'previsto',needsFeel:!r.rpe,
     workPace:QUALITY.includes(x.type)?workPaceOf(r):null};
   if(x.type==='test'){
@@ -1034,7 +1171,7 @@ function afterSync(){
     s.runs.filter(r=>!r.sessionId&&!r.extra&&r.date>=state.plan.created&&r.date<=td).forEach(r=>{
       const manual=state.sessions.find(x=>x.status==='done'&&x.date===r.date&&x.log&&!x.log.strava);
       if(manual){ // ya registrada a mano: se completa con los datos de Strava, sin contarla dos veces
-        Object.assign(manual.log,{km:Math.round(r.km*100)/100,time:r.sec,hr:r.hr,strava:r.id});
+        Object.assign(manual.log,{km:Math.round(r.km*100)/100,time:r.sec,hr:r.hr,strava:r.id,elev:r.elev,gap:r.gap||null});
         if(!manual.log.workPace&&QUALITY.includes(manual.type)) manual.log.workPace=workPaceOf(r);
         r.sessionId=manual.id;matched++;return;
       }
@@ -1080,14 +1217,16 @@ function fitnessFromEfforts(){
 /* ---------- carga: forma (42 días) y fatiga (7 días) ---------- */
 function activities(){
   const out=[];
-  (state.strava?state.strava.runs:[]).forEach(r=>out.push({date:r.date,km:r.km,sec:r.sec,hr:r.hr,src:'strava',run:r}));
-  state.sessions.filter(x=>x.status==='done'&&x.log&&!x.log.strava).forEach(x=>out.push({date:x.date,km:x.log.km||x.km,sec:x.log.time||null,src:'manual',session:x}));
+  (state.strava?state.strava.runs:[]).forEach(r=>out.push({date:r.date,km:r.km,sec:r.sec,hr:r.hr,elev:r.elev,gap:r.gap||null,src:'strava',run:r}));
+  state.sessions.filter(x=>x.status==='done'&&x.log&&!x.log.strava).forEach(x=>out.push({date:x.date,km:x.log.km||x.km,sec:x.log.time||null,elev:x.log.elev,gap:x.log.gap||null,src:'manual',session:x}));
+  (state.manual||[]).forEach(m=>out.push({date:m.date,km:m.km,sec:m.time,hr:m.hr,elev:m.elev,gap:m.gap||null,src:'manual',manual:m}));
   return out.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
 }
 function loadOf(a,p){
   if(!a.km) return 0;
-  const sec=a.sec||a.km*p*1.28;
-  const IF=clamp(p*1.07/(sec/a.km),0.5,1.15);
+  const sec=a.sec||a.km*p*1.32;
+  const pace=a.gap||(a.sec?gapFromElev(a.sec,a.km,a.elev):sec/a.km);
+  const IF=clamp(p*1.07/pace,0.5,1.15);
   return sec/3600*IF*IF*100;
 }
 function loadSeries(){
@@ -1170,11 +1309,13 @@ function analyze(s){
     let segs=r&&r.splits.length?r.splits.filter(x=>x.km>=0.5):[];
     if(finKm&&segs.length>finKm) segs=segs.slice(0,segs.length-finKm);
     if(segs.length>=2){
-      const fast=segs.filter(x=>x.sec/x.km<lo*0.97).length;
-      add(fast/segs.length<=0.25?true:fast/segs.length<=0.5?'warn':false,'Ritmo suave',fast?`${fast} de ${segs.length} km por debajo de ${fp(lo)} /km: más rápido de lo que toca.`:`Todos los km en ritmo suave o más lento. Bien hecho.`);
-      laps=segs.map((x,i)=>({n:i+1,km:x.km,pace:x.sec/x.km,hr:x.hr,st:x.sec/x.km<lo*0.97?'rápido':x.sec/x.km>hi*1.12?'lento':'ok'}));
+      const pc=x=>x.gap||x.sec/x.km,useGap=segs.some(x=>x.gap&&Math.abs(x.gap/(x.sec/x.km)-1)>0.03);
+      const fast=segs.filter(x=>pc(x)<lo*0.97).length;
+      add(fast/segs.length<=0.25?true:fast/segs.length<=0.5?'warn':false,'Ritmo suave',(fast?`${fast} de ${segs.length} km por debajo de ${fp(lo)} /km: más rápido de lo que toca.`:`Todos los km en ritmo suave o más lento. Bien hecho.`)+(useGap?' Ritmos ajustados por la pendiente.':''));
+      laps=segs.map((x,i)=>({n:i+1,km:x.km,pace:pc(x),hr:x.hr,st:pc(x)<lo*0.97?'rápido':pc(x)>hi*1.12?'lento':'ok'}));
     }else if(pace){
-      add(pace>=lo*0.97?true:'warn','Ritmo suave',pace>=lo*0.97?`Media de ${fp(pace)} /km, dentro de lo suave.`:`Media de ${fp(pace)} /km: más rápido que tu zona suave (${paceR(lo,hi)}).`);
+      const gp=s.log.gap||gapFromElev(time,km,s.log.elev)||pace;
+      add(gp>=lo*0.97?true:'warn','Ritmo suave',gp>=lo*0.97?`Media de ${fp(gp)} /km${gp!==pace?' (ajustado por desnivel)':''}, dentro de lo suave.`:`Media de ${fp(gp)} /km: más rápido que tu zona suave (${paceR(lo,hi)}).`);
     }
     if(hm&&segs.length>=2&&segs.every(x=>x.hr)){
       const hi80=hm*0.80,over=segs.filter(x=>x.hr>hi80).length;
@@ -1319,8 +1460,8 @@ function openPause(){
 function paceZones(){
   const p=state.fitness.p,pr=state.profile;
   const z=[
-    ['Recuperación',p*1.36,p*1.48,'Días muy suaves y vuelta a la calma'],
-    ['Suave',p*1.22,p*1.34,'La mayoría de los km: rodajes y tiradas'],
+    ['Recuperación',p*1.40,p*1.52,'Días muy suaves y vuelta a la calma'],
+    ['Suave',p*1.25,p*1.40,'La mayoría de los km: rodajes y tiradas'],
     ['Maratón',raceTime(p,42.195)/42.195*0.99,raceTime(p,42.195)/42.195*1.01,'Ritmo sostenible durante horas'],
     ['Media maratón',raceTime(p,21.0975)/21.0975*0.99,raceTime(p,21.0975)/21.0975*1.01,''],
     ['Umbral',p*1.05,p*1.09,'Tempo: exigente pero controlado'],
@@ -1338,7 +1479,7 @@ function renderZonas(){
     <p class="muted">Calculadas con tu forma actual (5 km en ${ft(state.fitness.p*5)}). Se actualizan solas cuando mejoras.</p></header>
     <section class="card stack" style="gap:0"><h3 style="margin-bottom:6px">Ritmo</h3>${paceZones().map(([n,lo,hi,t])=>`<div class="zrow"><div><b>${n}</b>${t?`<br><span class="small muted">${t}</span>`:''}</div><span class="num zv">${paceR(lo,hi)} /km</span></div>`).join('')}</section>
     <section class="card stack" style="gap:0"><h3 style="margin-bottom:6px">Pulso</h3>
-      ${hm?HR_Z.map(z=>`<div class="zrow"><div><b>Z${z.n} · ${z.name}</b></div><span class="num zv">${z.n===1?`<${Math.round(z.hi*hm)}`:z.n===5?`>${Math.round(z.lo*hm)}`:`${Math.round(z.lo*hm)}–${Math.round(z.hi*hm)}`} ppm</span></div>`).join('')+`<p class="small muted" style="margin-top:8px">Con una FC máxima de ${hm} ppm (${src}). Puedes cambiarla en Perfil.</p>`
+      ${hrBounds(1)?HR_Z.map(z=>{const b=hrBounds(z.n);return `<div class="zrow"><div><b>Z${z.n} · ${z.name}</b></div><span class="num zv">${z.n===1?`<${b[1]}`:!b[1]?`>${b[0]}`:`${b[0]}–${b[1]}`} ppm</span></div>`;}).join('')+`<p class="small muted" style="margin-top:8px">${state.strava&&state.strava.hrZones?'Son tus zonas personalizadas de Strava.':`Con una FC máxima de ${hm} ppm (${src}). Puedes cambiarla en Perfil.`}</p>`
       :'<p class="small muted">Pon tu FC máxima o tu edad en Perfil (o conecta Strava) para ver tus zonas de pulso.</p>'}</section>
     <section class="card stack"><h3>Cómo usarlas</h3><p class="small">El 80 % de los kilómetros deberían ir en zona suave. Si el ritmo y el pulso no cuadran (calor, cuestas, cansancio), manda el pulso en los días suaves y el ritmo en las series.</p></section></div>`;
 }
@@ -1432,7 +1573,7 @@ function renderHoy(){
       <div class="row wrap" style="gap:6px">${c?`<span class="chip">Semana ${cw+1} de ${plan.curve.length}</span><span class="chip">${PHASE_N[c.phase]}</span>${c.down?'<span class="chip ok">Semana de descarga</span>':''}`:''}${race?`<span class="chip q">${(n=>n===0?`${g.name}: ¡hoy es el día!`:n===1?`${g.name} mañana`:`${g.name} en ${n} días`)(daysBetween(td,race.date))}</span>`:''}</div>
     </header>
     ${stravaBar}
-    <section class="stack" style="gap:8px"><div class="row between"><h3>Esta semana</h3><span class="small muted num">${fk(kmDone)} de ${fk(kmPlan)} km</span></div><div class="week">${wkDays}</div></section>
+    <section class="stack" style="gap:8px"><div class="row between"><h3>Esta semana</h3><button type="button" class="ghost addbtn" data-act="addrun" aria-label="Añadir entreno">+ Añadir entreno</button></div><div class="row between" style="margin-top:-4px"><span class="small muted num">${fk(kmDone)} de ${fk(kmPlan)} km</span></div><div class="week">${wkDays}</div></section>
     ${feelCard}
     ${main}
     ${summaryCard(true)}
@@ -1479,6 +1620,7 @@ function openSession(id){
   const s=state.sessions.find(x=>x.id===id);if(!s)return;
   openSheet(`<div class="stack">${sessionCard(s,s.date===today())}${s.status==='pending'?moveHTML(s):''}
     ${s.status==='pending'&&s.date>today()?`<button class="ghost" data-act="skip" data-id="${s.id}">Sé que no podré hacerla</button>`:''}
+    ${s.status==='done'?`<button class="ghost" data-act="unlog" data-id="${s.id}">${s.log&&s.log.strava?'Desvincular de Strava':'Borrar registro'}</button>`:''}
     <div class="grid2"><a class="btn" href="#zonas" data-act="close" style="text-align:center;text-decoration:none">Ver mis zonas</a><button class="ghost" data-act="close">Cerrar</button></div></div>`);
 }
 function renderPlan(){
@@ -1591,9 +1733,10 @@ function renderProgreso(){
   const evs=state.adapt.events.map(e=>`<div class="ev"><span class="mk ${e.kind}" aria-hidden="true"></span><div><span class="small muted">${fdShort(e.date)} · ${e.kind==='up'?'Sube':e.kind==='down'?'Baja':'Ajuste'}</span><p>${esc(e.text)}</p></div></div>`).join('');
   const hist=acts.slice().reverse().slice(0,20).map(x=>{
     const ses=x.session||(x.run&&x.run.sessionId?state.sessions.find(s=>s.id===x.run.sessionId):null);
-    const title=ses?((ses.snap&&ses.snap.title)||TYPES[ses.type].n):(x.run?esc(x.run.name)||'Carrera':'Carrera');
+    const title=ses?((ses.snap&&ses.snap.title)||TYPES[ses.type].n):x.manual?(MAN_TYPES.find(m=>m[0]===x.manual.type)||MAN_TYPES[5])[1]:(x.run?esc(x.run.name)||'Carrera':'Carrera');
     const rpe=ses&&ses.log?ses.log.rpe+'/10':'';
-    return `<${ses?'button':'div'} class="item" ${ses?`data-act="open" data-id="${ses.id}"`:''}><span class="date">${DAYS[dow(x.date)]}<b class="num">${pd(x.date).getDate()}</b></span><span class="grow"><span class="t">${title}</span>${x.src==='strava'?' <span class="src">Strava</span>':''}${!ses&&state.plan&&x.date>=state.plan.created?' <span class="src">fuera del plan</span>':''}<br><span class="s num">${fk(x.km)} km${x.sec?' · '+ft(x.sec)+' · '+fp(x.sec/x.km)+' /km':''}${x.hr?' · '+Math.round(x.hr)+' ppm':''}</span></span><span class="status num">${rpe}</span></${ses?'button':'div'}>`;}).join('');
+    const act=ses?`data-act="open" data-id="${ses.id}"`:x.manual?`data-act="manopen" data-id="${x.manual.id}"`:'';
+    return `<${act?'button':'div'} class="item" ${act}><span class="date">${DAYS[dow(x.date)]}<b class="num">${pd(x.date).getDate()}</b></span><span class="grow"><span class="t">${title}</span>${x.src==='strava'?' <span class="src">Strava</span>':''}${!ses&&state.plan&&x.date>=state.plan.created?' <span class="src">fuera del plan</span>':''}<br><span class="s num">${fk(x.km)} km${x.sec?' · '+ft(x.sec)+' · '+fp(x.sec/x.km)+' /km':''}${x.elev>=30?' · +'+Math.round(x.elev)+' m':''}${x.hr?' · '+Math.round(x.hr)+' ppm':''}</span></span><span class="status num">${rpe||(x.manual?x.manual.rpe+'/10':'')}</span></${act?'button':'div'}>`;}).join('');
   app.innerHTML=`<div class="stack-lg">
    <header class="stack" style="gap:6px"><div class="lanes" aria-hidden="true"></div><h1>Progreso</h1></header>
    <div class="tiles">
@@ -1604,12 +1747,13 @@ function renderProgreso(){
    </div>
    ${summaryCard(false)}
    <a href="#zonas" class="card row between" style="text-decoration:none;color:inherit"><span><b>Tus zonas de ritmo y pulso</b><br><span class="small muted">Suave, umbral, ritmo de carrera, series…</span></span><span style="color:var(--accent);font-weight:800">›</span></a>
+   ${marksCard()}
    <section class="card stack"><h3>Predicciones</h3>${racePrediction()}<div class="pred">${pred}</div><p class="small muted">Tiempos posibles hoy según tu forma. Se actualizan con los tests, las carreras y tus mejores esfuerzos en Strava.</p></section>
    <section class="card stack"><h3>Kilómetros por semana</h3>${barChart()}</section>
    <section class="card stack"><h3>Forma y fatiga</h3>${formChart()}</section>
    <section class="card stack"><h3>Tu 5 km estimado</h3>${lineChart()}</section>
    <section class="card stack" style="gap:4px"><h3>Cómo se ha adaptado tu plan</h3>${evs||'<p class="muted small">Aún no hay ajustes.</p>'}</section>
-   <section class="card stack" style="gap:0"><h3 style="margin-bottom:6px">Historial · ${fk(totalKm)} km</h3>${hist||'<p class="muted small">Todavía no hay carreras.</p>'}${stravaOn()?'<p class="src" style="margin-top:8px">Datos de actividad: Strava</p>':''}</section>
+   <section class="card stack" style="gap:0"><div class="row between" style="margin-bottom:6px"><h3>Historial · ${fk(totalKm)} km</h3><button type="button" class="ghost addbtn" data-act="addrun">+ Añadir</button></div>${hist||'<p class="muted small">Todavía no hay carreras.</p>'}${stravaOn()?'<p class="src" style="margin-top:8px">Datos de actividad: Strava</p>':''}</section>
   </div>`;
 }
 function weeksSeries(){
@@ -1697,13 +1841,16 @@ let wiz=null; // {i, mode:'new'|'edit', key, dir}
 const GOAL_SUB={'5k':'Ganar velocidad','10k':'La distancia clásica','21k':'21,1 km de resistencia','42k':'42,2 km: el gran reto','forma':'Correr con constancia, sin carrera'};
 const REF_D=[['','Ninguna'],[5,'5 km'],[10,'10 km'],[21.0975,'Media'],[42.195,'Maratón']];
 function defaultDraft(){
-  return {name:'',goal:'10k',hasDate:false,raceDate:'',weeks:10,targetTime:'',level:'intermedio',weeklyKm:10,refDist:'',refTime:'',days:[1,3,6],longDay:6,hrMax:'',age:''};
+  return {name:'',goal:'10k',hasDate:false,raceDate:'',weeks:10,targetTime:'',raceElev:2,level:'intermedio',weeklyKm:10,days:[1,3,6],longDay:6,maxMin:'',hills:true,hrMax:'',age:'',mt0:'',mt1:'',mt2:'',mt3:'',ma0:90,ma1:90,ma2:90,ma3:90};
 }
 function draftFromProfile(p){
-  return {...defaultDraft(),...p,hasDate:!!p.raceDate,raceDate:p.raceDate||'',refDist:p.refDist||'',refTime:p.refTime?ft(p.refTime):'',targetTime:p.targetTime?ft(p.targetTime):'',hrMax:p.hrMax||'',age:p.age||'',days:[...p.days]};
+  const d={...defaultDraft(),...p,hasDate:!!p.raceDate,raceDate:p.raceDate||'',targetTime:p.targetTime?ft(p.targetTime):'',raceElev:p.raceElev||2,maxMin:p.maxMin||'',hills:p.hills!==false,hrMax:p.hrMax||'',age:p.age||'',days:[...p.days]};
+  let marks=p.marks||[];if(!marks.length&&p.refDist&&p.refTime) marks=[{d:p.refDist,t:p.refTime,date:addDays(today(),-30)}];
+  MARK_D.forEach(([dist],i)=>{const m=marks.find(x=>Math.abs(x.d-dist)<0.01);if(m){d['mt'+i]=ft(m.t);const ago=m.date?daysBetween(m.date,today()):90;d['ma'+i]=(AGE_OPTS.find(([v])=>ago<=v*1.5)||AGE_OPTS[4])[0];}});
+  return d;
 }
-function wizSteps(){return wiz&&wiz.mode==='edit'?[wiz.key]:['strava','goal','when','level','week','you','review'];}
-const STEP_N={goal:'Objetivo',when:'Fecha y marca',level:'Tu nivel',week:'Tu semana',you:'Sobre ti'};
+function wizSteps(){return wiz&&wiz.mode==='edit'?[wiz.key]:['strava','goal','when','level','marks','week','you','review'];}
+const STEP_N={goal:'Objetivo',when:'Tu carrera',level:'Tu nivel',marks:'Tus marcas',week:'Tu semana',you:'Sobre ti'};
 function renderSetup(){ // primera vez
   if(!wiz||wiz.mode!=='new') wiz={i:0,mode:'new',dir:1,anim:true};
   if(!draft) draft=prefillFromStrava(defaultDraft());
@@ -1727,24 +1874,33 @@ function stepHTML(key){
         <div><label>¿Tienes fecha?</label><div class="seg">${chipBtns('wset',[['1','Sí, tengo fecha'],['0','Todavía no']],d.hasDate?'1':'0','data-f="hasDate"')}</div></div>
         ${d.hasDate?`<div><label for="f-race">Día de la carrera</label><input id="f-race" type="date" data-f="raceDate" value="${d.raceDate}" min="${addDays(today(),14)}"><div class="hint" id="datehint">${d.raceDate?`${fdLong(d.raceDate)} · ${wk} semanas de plan`:'Elige el día en el calendario.'}</div></div>`
           :`<div><label>Duración del plan</label><div class="seg">${chipBtns('wset',[6,8,10,12,16,20].map(n=>[n,`${n} sem.`]),d.weeks,'data-f="weeks"')}</div></div>`}
+        <div><label>Perfil del recorrido</label><div class="seg">${chipBtns('wset',ELEV.map(([v,l])=>[v,l]),d.raceElev,'data-f="raceElev"')}</div><div class="hint">≈ ${Math.round((+d.raceElev||0)*g.dist/10)*10} m de desnivel positivo en total. Afecta a la predicción y a las sesiones de cuestas.</div></div>
         <div>${timeField('f-tt','targetTime',d.targetTime,'dur','Ej. '+TARGET_PH[d.goal],'Marca objetivo <span class="muted">(opcional)</span>')}<div class="hint" id="goalhint" aria-live="polite">${goalHint(d)}</div></div>`};}
     case 'level':
       return {q:'¿Cómo estás ahora?',h:'Así empiezo a una carga que puedas asumir. Si conectaste Strava, ya viene rellenado.',body:`
         <div class="cards" role="radiogroup">${Object.entries(LEVELS).map(([k,v])=>`<button type="button" class="ocard" role="radio" data-act="wset" data-f="level" data-v="${k}" aria-checked="${d.level===k}"><b>${v.name}</b><span>${v.sub}</span></button>`).join('')}</div>
-        <div><label>Kilómetros por semana ahora mismo</label>${intPicker('f-km','weeklyKm',0,150,1,Math.round(parseFloat(String(d.weeklyKm).replace(',','.'))||0),'km')}<div class="hint">0 si estás empezando.</div></div>
-        <div><label>Una marca reciente <span class="muted">(opcional, afina tus ritmos)</span></label><div class="seg">${chipBtns('wset',REF_D,d.refDist,'data-f="refDist"')}</div>
-          ${d.refDist?`<div style="margin-top:10px">${timeField('f-rt','refTime',d.refTime,'dur','Ej. 27:40','Tiempo')}</div>`:''}</div>`};
+        <div><label>Kilómetros por semana ahora mismo</label>${intPicker('f-km','weeklyKm',0,150,1,Math.round(parseFloat(String(d.weeklyKm).replace(',','.'))||0),'km')}<div class="hint">${stravaOn()&&stravaSummary()?`Según Strava, ${fk(stravaSummary().km)} km de media en las últimas 4 semanas.`:'0 si estás empezando.'}</div></div>`};
+    case 'marks':{
+      const sp=stravaPRs(),bm=bestMark({marks:marksFromDraft(d)});
+      return {q:'Tus mejores marcas',h:'Pon todas las que recuerdes, aunque sean antiguas: tengo en cuenta cuándo las hiciste. Con varias marcas, tus ritmos salen más precisos.',body:`
+        ${sp.length?`<section class="card stack" style="gap:0"><span class="eyebrow" style="margin-bottom:4px">Encontradas en Strava</span>${sp.map(m=>`<div class="zrow"><span>${PR_NAME[m.key]}<br><span class="small muted">${fdMark(m.date)}</span></span><b class="num zv">${ft(m.t)}</b></div>`).join('')}<p class="small muted" style="margin-top:6px">Ya las uso. Añade abajo solo las que no estén en Strava.</p></section>`:''}
+        ${MARK_D.map(([dist,n],i)=>`<div class="mark"><label>${n}</label>${pickerHTML('m-t'+i,'mt'+i,'dur',d['mt'+i],true)}
+          ${d['mt'+i]?`<div class="seg small-seg" style="margin-top:8px">${chipBtns('wset',AGE_OPTS,d['ma'+i],`data-f="ma${i}"`)}</div>`:''}</div>`).join('')}
+        <p class="hint" id="markhint" aria-live="polite">${markHint(d)}</p>`};}
     case 'week':{
       const ld=[...d.days].sort((a,b)=>a-b);
       return {q:'¿Qué días puedes correr?',h:'Entre 3 y 5 días es lo ideal. Si un día concreto no puedes, luego podrás mover esa sesión.',body:`
         <div class="days" role="group" aria-label="Días">${DAYS.map((n,i)=>`<button type="button" class="dayb" data-act="wday" data-v="${i}" aria-pressed="${d.days.includes(i)}">${n}</button>`).join('')}</div>
         <p class="hint" id="dayshint">${d.days.length} día${d.days.length===1?'':'s'} por semana${d.days.length<3?' · con 3 progresarás mejor':d.days.length>5?' · deja algún día de descanso':''}</p>
-        <div><label>Día de la tirada larga</label><div class="seg">${chipBtns('wset',ld.map(i=>[i,DAYS_L[i][0].toUpperCase()+DAYS_L[i].slice(1)]),d.longDay,'data-f="longDay"')}</div><div class="hint">Mejor un día con tiempo y sin prisas.</div></div>`};}
+        <div><label>Día de la tirada larga</label><div class="seg">${chipBtns('wset',ld.map(i=>[i,DAYS_L[i][0].toUpperCase()+DAYS_L[i].slice(1)]),d.longDay,'data-f="longDay"')}</div><div class="hint">Mejor un día con tiempo y sin prisas.</div></div>
+        <div><label>Tiempo máximo los demás días</label><div class="seg">${chipBtns('wset',[['30','30 min'],['45','45 min'],['60','1 h'],['75','1 h 15'],['90','1 h 30'],['','Sin límite']],d.maxMin,'data-f="maxMin"')}</div><div class="hint">Ajusto las sesiones entre semana para que quepan en ese tiempo.</div></div>
+        <div><label>¿Tienes cuestas cerca para entrenar?</label><div class="seg">${chipBtns('wset',[['1','Sí'],['0','No']],d.hills?'1':'0','data-f="hills"')}</div><div class="hint">Si no, cambio las sesiones de cuestas por otras de ritmo.</div></div>`};}
     case 'you':
-      return {q:'Un poco sobre ti',h:'Todo opcional. La FC máxima o la edad sirven para tus zonas de pulso.',body:`
+      return {q:'Un poco sobre ti',h:'Todo opcional. La edad ajusta la recuperación del plan (a partir de 50 años sube la carga más despacio y descansa más a menudo) y, si no sabes tu FC máxima, sirve para estimarla.',body:`
         <div><label for="f-name">Nombre</label><input id="f-name" data-f="name" value="${esc(d.name)}" autocomplete="given-name" enterkeyhint="done" autocapitalize="words"></div>
         <div class="grid2"><div><label>FC máxima</label>${intPicker('f-hr','hrMax',120,220,1,d.hrMax,'ppm','Sin dato')}${state.strava&&state.strava.hrMax?`<div class="hint">En Strava: ${state.strava.hrMax} ppm</div>`:''}</div>
-        <div><label>Edad</label>${intPicker('f-age','age',10,90,1,d.age,'años','Sin dato')}</div></div>`};
+        <div><label>Edad</label>${intPicker('f-age','age',10,90,1,d.age,'años','Sin dato')}</div></div>
+        <p class="hint" id="agehint" aria-live="polite">${ageNote({age:+d.age})||(d.age?'Con tu edad el plan sigue la progresión normal.':'')}${!d.hrMax&&d.age&&!(state.strava&&state.strava.hrMax)?` FC máxima estimada: ${Math.round(208-0.7*d.age)} ppm.`:''}</p>`};
     case 'review':{
       const pv=previewPlan();
       return {q:'Tu plan',h:'Revisa que todo esté bien. Puedes tocar cualquier fila para cambiarla.',body:`
@@ -1758,9 +1914,10 @@ function summaryRows(act){
   const d=draft,g=GOALS[d.goal],T=parseTime(d.targetTime);
   const rows=[
     ['goal','Objetivo',g.name],
-    ['when',g.dist?'Fecha y marca':'Duración',g.dist?`${d.hasDate&&d.raceDate?fdShort(d.raceDate):`${d.weeks} semanas`}${T?` · ${ft(T)}`:''}`:`${d.weeks} semanas`],
+    ['when',g.dist?'Tu carrera':'Duración',g.dist?`${d.hasDate&&d.raceDate?fdShort(d.raceDate):`${d.weeks} semanas`} · ${elevName(d.raceElev).toLowerCase()}${T?` · ${ft(T)}`:''}`:`${d.weeks} semanas`],
     ['level','Nivel',`${LEVELS[d.level].name} · ${fk(parseFloat(String(d.weeklyKm).replace(',','.'))||0)} km/sem`],
-    ['week','Días',`${[...d.days].sort((a,b)=>a-b).map(i=>DAYS[i]).join(', ')} · larga el ${DAYS_L[d.longDay]}`],
+    ['marks','Marcas',(()=>{const ms=MARK_D.map(([x,n],i)=>d['mt'+i]?`${n} ${d['mt'+i]}`:null).filter(Boolean);const sp=stravaPRs().filter(m=>m.d>=5).length;return ms.join(' · ')||(sp?`${sp} de Strava`:'Ninguna');})()],
+    ['week','Semana',`${[...d.days].sort((a,b)=>a-b).map(i=>DAYS[i]).join(', ')} · larga el ${DAYS_L[d.longDay]}${d.maxMin?` · máx. ${d.maxMin} min`:''}`],
     ['you','Sobre ti',[d.name,d.hrMax?`FC máx ${d.hrMax}`:'',d.age?`${d.age} años`:''].filter(Boolean).join(' · ')||'Sin datos']
   ];
   return rows.map(([k,l,v])=>`<button type="button" class="item" data-act="${act}" data-step="${k}"><span class="grow"><span class="s">${l}</span><br><span class="t">${esc(v)}</span></span><span class="chev" aria-hidden="true">›</span></button>`).join('');
@@ -1798,7 +1955,9 @@ function validateStep(key){
   if(key==='level'){
     const km=parseFloat(String(d.weeklyKm).replace(',','.'));
     if(isNaN(km)||km<0||km>200) return 'Indica los kilómetros semanales (0 si estás empezando).';
-    if(d.refDist){const t=parseTime(d.refTime);if(!t) return 'Escribe el tiempo de esa marca, o elige «Ninguna».';const pc=t/+d.refDist;if(pc<150||pc>720) return 'Ese tiempo no parece correcto para esa distancia. Revísalo.';}
+  }
+  if(key==='marks'){
+    for(let i=0;i<MARK_D.length;i++){const t=parseTime(d['mt'+i]);if(t){const pc=t/MARK_D[i][0];if(pc<150||pc>720) return `La marca de ${MARK_D[i][1].toLowerCase()} no parece correcta. Revísala.`;}}
   }
   if(key==='week'&&d.days.length<2) return 'Elige al menos 2 días.';
   if(key==='you'){
@@ -1808,10 +1967,11 @@ function validateStep(key){
   return null;
 }
 function profileFromDraft(){
-  const d=draft,g=GOALS[d.goal],refDist=d.refDist?+d.refDist:null;
+  const d=draft,g=GOALS[d.goal];
   return {name:String(d.name||'').trim().slice(0,30),goal:d.goal,raceDate:g.dist&&d.hasDate&&d.raceDate?d.raceDate:null,weeks:+d.weeks||g.defWeeks,
     targetTime:g.dist&&String(d.targetTime||'').trim()?parseTime(d.targetTime):null,level:d.level,weeklyKm:parseFloat(String(d.weeklyKm).replace(',','.'))||0,
-    refDist,refTime:refDist?parseTime(d.refTime):null,days:[...d.days].sort((a,b)=>a-b),longDay:d.days.includes(+d.longDay)?+d.longDay:Math.max(...d.days),
+    marks:marksFromDraft(d),raceElev:g.dist?(+d.raceElev||0):0,maxMin:+d.maxMin||null,hills:d.hills!==false&&d.hills!=='0',
+    days:[...d.days].sort((a,b)=>a-b),longDay:d.days.includes(+d.longDay)?+d.longDay:Math.max(...d.days),
     hrMax:+d.hrMax>120&&+d.hrMax<230?+d.hrMax:null,age:+d.age>=10&&+d.age<=90?+d.age:null};
 }
 function previewPlan(){
@@ -1823,8 +1983,8 @@ function previewPlan(){
     const G=pl.goal,g=GOALS[state.profile.goal];
     let goalText='';
     if(g.dist){
-      const now=raceTime(state.fitness.p,g.dist);
-      goalText=G?`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}. Tu objetivo, <b class="num">${ft(state.profile.targetTime)}</b>, es <b>${G.status}</b>${G.status==='poco realista'?`: lo razonable sería unos ${ft(G.realistic)}`:''}.`:`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}. El plan se adapta a cómo vayas mejorando.`;
+      const now=raceTime(state.fitness.p,g.dist)*(1+elevPen(state.profile));
+      goalText=G?`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}${elevPen(state.profile)>0.005?' con ese desnivel':''}. Tu objetivo, <b class="num">${ft(state.profile.targetTime)}</b>, es <b>${G.status}</b>${G.status==='poco realista'?`: lo razonable sería unos ${ft(G.realistic)}`:''}.`:`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}. El plan se adapta a cómo vayas mejorando.`;
     }
     return {weeks:pl.curve.length,km0:pl.curve[0].km,peak:Math.max(...pl.curve.map(c=>c.km)),first,goalText};
   }catch(e){return null;}
@@ -1850,7 +2010,7 @@ function wizSave(){
   const key=wiz.key,err=validateStep(key);
   if(err){$('#err').textContent=err;return;}
   const pr=profileFromDraft();
-  if(key==='you'){Object.assign(state.profile,{name:pr.name,hrMax:pr.hrMax,age:pr.age});save();wiz=null;draft=null;lastTab=null;route();toast('Guardado.');return;}
+  if(key==='you'&&ageAdj(pr).band===ageAdj(state.profile).band){Object.assign(state.profile,{name:pr.name,hrMax:pr.hrMax,age:pr.age});save();wiz=null;draft=null;lastTab=null;route();toast('Guardado.');return;}
   openSheet(`<div class="stack"><h2>¿Recalcular el plan?</h2><p class="muted">Rehago el plan desde hoy con los cambios. Tu historial, tus ritmos y lo que la app ha aprendido de ti se mantienen.</p>
     <div class="grid2"><button class="ghost" data-act="close">Cancelar</button><button class="primary" data-act="wconfirm">Recalcular</button></div></div>`);
 }
@@ -1930,6 +2090,88 @@ function renderCodeScreen(code){
    <p class="muted">Strava te ha devuelto a Safari en lugar de a la app. Copia este código, abre Zancada desde la pantalla de inicio y pégalo en Perfil › Strava › Avanzado › Código de conexión.</p></header>
    <div class="card stack"><code id="thecode" style="font-size:16px">${esc(code)}</code><button class="primary" data-act="copycode">Copiar código</button></div>
    <p class="small muted">El código caduca pronto: pégalo en los próximos minutos.</p></div>`;
+}
+
+/* =========================================================
+   Registro manual de entrenamientos
+   ========================================================= */
+const MAN_TYPES=[['easy','Rodaje'],['long','Tirada larga'],['series','Series'],['tempo','Tempo'],['race','Competición'],['other','Otro']];
+let addDraft=null;
+function openAddRun(prefDate){
+  const td=today();
+  addDraft={date:prefDate||td,type:'easy',rpe:null};
+  renderAddRun();
+}
+function renderAddRun(){
+  const td=today(),a=addDraft;
+  const dChips=[[td,'Hoy'],[addDays(td,-1),'Ayer'],[addDays(td,-2),'Anteayer']];
+  const ses=state.plan?state.sessions.find(x=>x.date===a.date&&(x.status==='pending'||(x.status==='skipped'&&x.auto))):null;
+  const html=`<div id="addf" class="stack">
+    <h2>Añadir entreno</h2>
+    <div><label>Día</label><div class="seg">${dChips.map(([d,l])=>`<button type="button" data-act="addset" data-f="date" data-v="${d}" aria-pressed="${a.date===d}">${l}</button>`).join('')}</div>
+      <input type="date" id="a-date" style="margin-top:8px" max="${td}" value="${a.date}"><div class="hint">${fdLong(a.date)}${ses?` · cuenta como tu sesión del plan: <b>${TYPES[ses.type].n.toLowerCase()}</b>`:''}</div></div>
+    ${ses?'':`<div><label>Tipo</label><div class="seg">${MAN_TYPES.map(([k,l])=>`<button type="button" data-act="addset" data-f="type" data-v="${k}" aria-pressed="${a.type===k}">${l}</button>`).join('')}</div></div>`}
+    <div><label>Distancia</label>${pickerHTML('a-km','','dist',a.km||'',true)}</div>
+    <div><label>Tiempo</label>${pickerHTML('a-t','','dur',a.t||'',true)}</div>
+    <div class="grid2"><div><label>Desnivel +</label>${intPicker('a-elev','',0,2500,10,a.elev==null?'':a.elev,'m','Sin dato')}</div><div><label>Pulso medio</label>${intPicker('a-hr','',80,210,1,a.hr==null?'':a.hr,'ppm','Sin dato')}</div></div>
+    <div><label>¿Cómo te ha resultado?</label><div class="rpe" role="radiogroup">${RPE_OPTS.map(([v,l])=>`<button type="button" role="radio" data-act="addrpe" data-v="${v}" aria-checked="${a.rpe===v}"><b>${v}</b>${l}</button>`).join('')}</div></div>
+    <div><label for="a-n">Notas <span class="muted">(opcional)</span></label><textarea id="a-n" rows="2" placeholder="Recorrido, sensaciones…">${esc(a.notes||'')}</textarea></div>
+    <p class="err" id="aerr" role="alert"></p>
+    <div class="grid2"><button type="button" class="ghost" data-act="close">Cancelar</button><button type="button" class="primary" data-act="addsave">Guardar</button></div></div>`;
+  const sh=layer.querySelector('.sheet');
+  if(sh&&sh.querySelector('#addf')){const y=sh.scrollTop;sh.innerHTML='<div class="grab" aria-hidden="true"></div>'+html;sh.scrollTop=y;}
+  else openSheet(html);
+}
+function readAddRun(){
+  const a=addDraft,v=id=>{const e=$('#'+id);return e?e.value:'';};
+  a.km=v('a-km');a.t=v('a-t');a.elev=v('a-elev')===''?null:+v('a-elev');a.hr=v('a-hr')===''?null:+v('a-hr');a.notes=v('a-n');
+  const dd=v('a-date');if(dd)a.date=dd;
+}
+function saveAddRun(){
+  readAddRun();
+  const a=addDraft,err=$('#aerr'),td=today();
+  const km=parseFloat(a.km),t=parseTime(a.t);
+  if(!(km>0)){err.textContent='Elige la distancia.';return;}
+  if(!t){err.textContent='Elige el tiempo.';return;}
+  if(t/km<150||t/km>1100){err.textContent='La distancia y el tiempo no cuadran. Revísalos.';return;}
+  if(!a.rpe){err.textContent='Elige cómo te ha resultado.';return;}
+  if(a.date>td){err.textContent='No puedes registrar un día futuro.';return;}
+  const snap=JSON.stringify(state);
+  const ses=state.plan?state.sessions.find(x=>x.date===a.date&&(x.status==='pending'||(x.status==='skipped'&&x.auto))):null;
+  const log={rpe:a.rpe,km,time:t,elev:a.elev,hr:a.hr,notes:(a.notes||'').trim().slice(0,200),gap:gapFromElev(t,km,a.elev)};
+  let msg;
+  if(ses){
+    if(ses.status==='skipped'){const copy=state.sessions.find(y=>y.moved&&y.from===ses.date&&y.type===ses.type&&y.status==='pending');if(copy)state.sessions=state.sessions.filter(y=>y!==copy);}
+    ses.status='pending';const ev0=state.adapt.events[0];logDone(ses,log);
+    const ne=state.adapt.events[0];msg=ne&&ne!==ev0?'Guardado en tu plan. '+ne.text.split('. ')[0]+'.':'Guardado como tu sesión del plan.';
+  }else{
+    state.manual=state.manual||[];
+    state.manual.push(Object.assign({id:uid(),date:a.date,type:a.type,at:Date.now()},log));
+    msg='Entreno añadido.';
+    if(a.type==='race'){
+      const sd=MARK_D.find(([d])=>Math.abs(km-d)/d<0.03);
+      if(sd&&state.profile){const ms=state.profile.marks||[],ex=ms.find(m=>Math.abs(m.d-sd[0])<0.01);if(!ex||t<ex.t)state.profile.marks=ms.filter(m=>m!==ex).concat([{d:sd[0],t,date:a.date}]);}
+      if(state.fitness){const np=t*Math.pow(5/km,1.06)/5;if(np>150&&np<720){setFitness(np,'Competición registrada.',true);msg='Competición registrada: ritmos actualizados.';}}
+    }
+    if(state.plan&&checkFatigue()) msg+=' Plan ajustado por la carga.';
+  }
+  save();closeSheet();route();toast(msg,{undo:snap});
+}
+function openManual(id){
+  const m=(state.manual||[]).find(x=>x.id===id);if(!m)return;
+  const t=(MAN_TYPES.find(x=>x[0]===m.type)||MAN_TYPES[5])[1];
+  openSheet(`<div class="stack"><span class="eyebrow">${fdLong(m.date)} · fuera del plan</span><h2>${t}</h2>
+    <div class="tiles"><div class="tile"><div class="k">Distancia</div><div class="v num">${fk(m.km)} km</div></div><div class="tile"><div class="k">Tiempo</div><div class="v num">${ft(m.time)}</div><div class="k num">${fp(m.time/m.km)} /km</div></div></div>
+    <p class="small muted">${[m.elev!=null?`+${m.elev} m de desnivel`:'',m.hr?`${m.hr} ppm de media`:'',`esfuerzo ${m.rpe}/10`].filter(Boolean).join(' · ')}</p>
+    ${m.notes?`<p class="small">${esc(m.notes)}</p>`:''}
+    <p class="small muted">Cuenta para tu carga, tu forma y tus kilómetros.</p>
+    <div class="grid2"><button class="danger" data-act="mandel" data-id="${m.id}">Borrar</button><button class="ghost" data-act="close">Cerrar</button></div></div>`);
+}
+function unlogSession(s){
+  if(!s||s.status!=='done') return;
+  if(s.log&&s.log.strava&&state.strava){const r=state.strava.runs.find(x=>x.id===s.log.strava);if(r){r.sessionId=null;r.extra=true;}}
+  s.status='pending';delete s.log;delete s.snap;delete s.rpeExp;
+  if(s.date<today()) skip(s,true);
 }
 
 /* ---------- Avisos con «Deshacer» ---------- */
@@ -2057,7 +2299,8 @@ document.addEventListener('click',e=>{
     // asistente
     case 'wset':{readDraftInputs();const f=t.dataset.f,v=t.dataset.v;
       if(f==='hasDate') draft.hasDate=v==='1';
-      else{draft[f]=v;if(f==='goal'){draft.weeks=GOALS[v].defWeeks;if(!GOALS[v].dist)draft.targetTime='';}if(f==='weeks')draft.weeks=+v;if(f==='longDay')draft.longDay=+v;if(f==='refDist'&&!v)draft.refTime='';}
+      else if(f==='hills') draft.hills=v==='1';
+      else{draft[f]=v;if(f==='goal'){draft.weeks=GOALS[v].defWeeks;if(!GOALS[v].dist)draft.targetTime='';}if(f==='weeks')draft.weeks=+v;if(f==='longDay')draft.longDay=+v;if(f==='raceElev'||/^ma\d$/.test(f))draft[f]=+v;}
       wizRerender();if(f==='refDist'&&v){const i=$('#f-rt');if(i)i.focus();}break;}
     case 'wday':{readDraftInputs();const v=+t.dataset.v,i=draft.days.indexOf(v);if(i>=0)draft.days.splice(i,1);else draft.days.push(v);
       if(!draft.days.includes(+draft.longDay)&&draft.days.length)draft.longDay=Math.max(...draft.days);wizRerender();break;}
@@ -2086,6 +2329,13 @@ document.addEventListener('click',e=>{
     case 'rate':{const s=state.sessions.find(x=>x.id===id);const snap=JSON.stringify(state),ev0=state.adapt.events[0];rateSession(s,+t.dataset.v);save();route();const ne=state.adapt.events[0];toast(ne&&ne!==ev0?'Gracias. Plan ajustado: '+ne.text.split('. ')[0]+'.':'Gracias, anotado.',{undo:snap});break;}
     case 'undo': undoLast(t);break;
     case 'pclear': clearPicker(t);break;
+    case 'addrun': openAddRun();break;
+    case 'addset': readAddRun();addDraft[t.dataset.f]=t.dataset.v;renderAddRun();break;
+    case 'addrpe': addDraft.rpe=+t.dataset.v;t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-checked',String(b===t)));$('#aerr').textContent='';break;
+    case 'addsave': saveAddRun();break;
+    case 'manopen': openManual(id);break;
+    case 'mandel':{const snap=JSON.stringify(state);state.manual=(state.manual||[]).filter(m=>m.id!==id);save();closeSheet();route();toast('Entreno borrado.',{undo:snap});break;}
+    case 'unlog':{const s=state.sessions.find(x=>x.id===id);if(!s)break;const snap=JSON.stringify(state);unlogSession(s);save();closeSheet();route();toast('Registro borrado.',{undo:snap});break;}
     case 'newblock':{const snap=JSON.stringify(state);const pr={...state.profile};pr.weeklyKm=Math.round(activities().filter(a=>daysBetween(a.date,today())<21&&a.date<=today()).reduce((x,a)=>x+a.km,0)/3);if(pr.raceDate&&pr.raceDate<=today()){pr.raceDate=null;pr.targetTime=null;}pr.refDist=null;pr.refTime=null;state.profile.refDist=null;state.profile.refTime=null;createPlan(pr,true);save();route();toast('Nuevo bloque creado.',{undo:snap});break;}
     // datos y Strava
     case 'export':{const blob=new Blob([JSON.stringify(state)],{type:'application/json'});const l=document.createElement('a');l.href=URL.createObjectURL(blob);l.download=`zancada-${today()}.json`;document.body.appendChild(l);l.click();setTimeout(()=>{URL.revokeObjectURL(l.href);l.remove();},1500);toast('Copia descargada. En el iPhone queda en la app Archivos.');break;}
@@ -2109,6 +2359,9 @@ document.addEventListener('input',e=>{
   if(el.dataset&&el.dataset.f&&draft&&el.closest('.wiz')){
     readDraftInputs();
     const h=$('#goalhint');if(h)h.innerHTML=goalHint(draft);
+    const mh=$('#markhint');if(mh)mh.innerHTML=markHint(draft);
+    if(/^mt\d$/.test(el.dataset.f)&&(!!el.value)!==(!!el.closest('.mark').querySelector('.seg'))){wizRerender();return;}
+    const ah=$('#agehint');if(ah)ah.textContent=(ageNote({age:+draft.age})||(draft.age?'Con tu edad el plan sigue la progresión normal.':''))+(!draft.hrMax&&draft.age&&!(state.strava&&state.strava.hrMax)?` FC máxima estimada: ${Math.round(208-0.7*draft.age)} ppm.`:'');
     const e2=$('#err');if(e2)e2.textContent='';
   }
   const k=el.dataset&&el.dataset.sv;if(k){sv()[k]=el.value.trim();save();}
@@ -2117,6 +2370,7 @@ document.addEventListener('change',e=>{
   const el=e.target;
   if(el.matches&&el.matches('.picker select')){onPickerChange(el);return;}
   if(el.id==='f-race'&&draft){readDraftInputs();wizRerender();return;}
+  if(el.id==='a-date'&&addDraft){readAddRun();renderAddRun();return;}
   if(el.id==='p-to'){const h=$('#p-to-h');if(h)h.textContent=el.value?`Vuelves el ${fdLong(el.value)}.`:'';return;}
   if(el.id!=='f-file'||!el.files[0])return;
   const fr=new FileReader();fr.onload=()=>{try{const s=JSON.parse(fr.result);if(!s.profile||!s.sessions)throw 0;const snap=JSON.stringify(state);state=s;draft=null;save();lastTab=null;location.hash='#hoy';route();toast('Copia restaurada.',{undo:snap});}catch(_){toast('Ese archivo no es una copia válida de Zancada.');}};fr.readAsText(el.files[0]);
