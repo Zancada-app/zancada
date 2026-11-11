@@ -12,9 +12,10 @@ Necesitas:
 
 1. Entra en https://github.com y crea una cuenta si no tienes.
 2. Pulsa **New repository**. Nombre: `zancada`. Márcalo como **Public** y pulsa **Create repository**.
-3. En el repositorio vacío, pulsa **uploading an existing file**. Arrastra **todo el contenido** de esta carpeta (`index.html`, `manifest.webmanifest`, `sw.js`, `robots.txt` y los cinco iconos `.png`). Pulsa **Commit changes**.
-4. Ve a **Settings › Pages**. En *Source* elige **Deploy from a branch**, rama `main`, carpeta `/ (root)`, y pulsa **Save**.
-5. En uno o dos minutos la app estará en:
+3. Ve a **Settings › Pages** y en *Source* elige **GitHub Actions**.
+4. En el repositorio, pulsa **Add file › Create new file**. Como nombre escribe `.github/workflows/publicar.yml` (las barras crean las carpetas solas), pega el contenido del archivo `publicar.yml` de esta versión y pulsa **Commit changes**. Es el «publicador»: lo haces una sola vez.
+5. Pulsa **Add file › Upload files**, sube el archivo `zancada.zip` **tal cual, sin descomprimir** y pulsa **Commit changes**. El publicador lo descomprime, coloca cada archivo en su carpeta, pasa las pruebas y publica. Puedes ver cómo va en la pestaña **Actions** (círculo amarillo: trabajando; verde: publicado).
+6. En uno o dos minutos la app estará en:
    `https://TU-USUARIO.github.io/zancada/`
 
 > El código es público, pero no contiene ninguna clave ni ningún dato. Las claves de Strava se escriben dentro de la app y se quedan en el iPhone.
@@ -95,4 +96,45 @@ Algunos navegadores bloquean que una página hable directamente con Strava (es u
 
 ## 7. Actualizar la app
 
-Si te paso una versión nueva de `index.html`, súbela al repositorio en GitHub encima de la anterior (**Add file › Upload files**). La próxima vez que el corredor abra la app con conexión, se actualizará sola. Sus datos no se tocan.
+Cuando te pase una versión nueva, sube el `zancada.zip` al repositorio (**Add file › Upload files**), igual que la primera vez. El publicador sustituye los archivos (y borra los que ya no se usan) y publica. La próxima vez que el corredor abra la app con conexión, se actualizará sola. Sus datos no se tocan.
+
+Si el círculo de **Actions** sale rojo, la versión no se publica y la app sigue con la anterior: avísame con una captura.
+
+## 8. Cómo está hecho el código
+
+Sin frameworks, sin dependencias y sin paso de compilación: HTML, CSS y JavaScript con módulos ES estándar, que Safari carga directamente.
+
+```
+index.html              estructura mínima: contenedor, pestañas, capa de hojas
+css/app.css             estilos (fuentes del sistema, modo claro y oscuro)
+sw.js                   service worker: funciona sin conexión
+js/main.js              punto de entrada: eventos, arranque, service worker
+js/core/                utilidades puras (fechas, formatos) y estado + guardado local
+js/model/               lógica de entrenamiento, sin pantalla ni red:
+  constants.js            objetivos, niveles, tipos de sesión, etapas correr/andar
+  plan.js                 periodización y reparto semanal
+  workouts.js             bloques de cada sesión, ritmos y zonas de pulso
+  heartrate.js            FC máxima, umbral de pulso, forma por pulso
+  load.js                 carga (TRIMP/rTSS/sRPE), CTL/ATL, predicciones
+  activities.js           historial de carreras, emparejado con el plan, fatiga
+  marks.js, elevation.js  marcas personales y desnivel
+  goal.js                 viabilidad y seguimiento del objetivo
+  adapt.js                motor de adaptación del plan
+  analysis.js             análisis de la sesión hecha
+  readiness.js            estado del día y «No estoy al 100 %»
+  calendar.js             mover sesiones, pausas y vuelta
+  weather.js, strength.js, weekly.js   calor, fuerza, resumen semanal
+js/services/            Strava (OAuth, API, sincronización) y tiempo (Open-Meteo)
+js/ui/                  router, hojas, avisos, selectores, gráficas, tarjetas, eventos
+js/ui/screens/          una pantalla por archivo: hoy, plan, progreso,
+                        zonas, perfil, asistente, registro manual
+tests/                  pruebas (ver tests/README.md)
+.github/workflows/      publicación automática en GitHub Pages
+```
+
+Reglas que sigue el código:
+- Las capas van de abajo arriba: `core` → `model` → `services` → `ui`. `model` no sabe nada de la pantalla ni de la red, y las pantallas no calculan entrenos (lo comprueba `tests/check-layers.cjs`).
+- Un único estado (`state`, en `core/store.js`) que se guarda en el móvil. Los módulos que necesitan sustituirlo usan `setState()`.
+- Un único manejador por tipo de evento (`ui/events.js`), con acciones declaradas en el HTML mediante `data-act`.
+- Ningún módulo ejecuta nada al importarse salvo `main.js`.
+- Al añadir o renombrar un archivo, hay que añadirlo a `SHELL` en `sw.js` y subir la versión de `CACHE` (la prueba `tests/check-sw.cjs` lo comprueba).
