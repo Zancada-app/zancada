@@ -17,6 +17,7 @@ import { intPicker, pickerHTML, timeField } from '../pickers.js';
 import { prefillFromStrava, stravaPrefillCard, stravaSection } from './perfil.js';
 import { toast } from '../toast.js';
 import { closeSheet, lastTab, openSheet, route, setLastTab } from '../router.js';
+import { finishEval, finishTime, isFinish, needsLongPlan } from '../../model/finish.js';
 
 export function draftP(d){
   if(state.fitness&&state.profile) {const bm=bestMark({marks:marksFromDraft(d)});return bm&&bm.src==='manual'&&bm.p<state.fitness.p*0.97?bm.p:state.fitness.p;}
@@ -31,7 +32,10 @@ export function goalHint(d){
   const pen=d.hasDate||true?0.001485*(+d.raceElev||0):0;
   const cur=`Con tu forma actual harías unos <b class="num">${ft(raceTime(p0,g.dist)*(1+pen))}</b>${pen>0.005?' en ese recorrido':''}.`;
   const T=parseTime(d.targetTime);
-  if(!T) return cur+' Si pones una marca objetivo, el plan se construye para llegar a ella.';
+  const pr={goal:d.goal,level:d.level,weeklyKm:parseFloat(String(d.weeklyKm).replace(',','.'))||0,first:firstOf(d),targetTime:aimOf(d)==='time'?T:null,raceElev:+d.raceElev||0,age:+d.age||null};
+  if(aimOf(d)==='finish') return finishText(pr,p0,weeks);
+  const extra=needsLongPlan(pr)?' '+finishText(pr,p0,weeks):'';
+  if(!T) return cur+' Escribe la marca que quieres hacer.';
   if(T/g.dist<150||T/g.dist>720) return 'Escribe la marca como 45:00 o 1:45:00.';
   const G=goalEval({goal:d.goal,level:d.level,targetTime:T,raceElev:+d.raceElev||0,age:+d.age||null},p0,weeks);
   const pct=(G.needed*100).toFixed(1).replace('.',',');
@@ -40,7 +44,28 @@ export function goalHint(d){
     'alcanzable':`Mejorar un ${pct} % en ${weeks} semanas es alcanzable.`,
     'ambicioso':`Mejorar un ${pct} % en ${weeks} semanas es ambicioso: el plan tendrá más volumen y calidad.`,
     'poco realista':`Mejorar un ${pct} % en ${weeks} semanas es poco realista: lo razonable sería unos <b class="num">${ft(G.realistic)}</b>. Puedes mantenerlo, pero el ritmo de carrera se entrenará con una referencia alcanzable.`
-  })[G.status];
+  })[G.status]+extra;
+}
+
+const aimOf=d=>d.aim||(String(d.targetTime||'').trim()?'time':'finish');
+const firstOf=d=>d.first===true||d.first==='1';
+const the=g=>g.dist>40?'la maratón':g.dist>20?'la media maratón':`los ${g.name}`;
+
+/** Texto de viabilidad para terminar (o para una primera media/maratón): tirada larga y semanas. */
+export function finishText(pr,p,weeks){
+  const g=GOALS[pr.goal],E=finishEval(pr,p,weeks);
+  const T=finishTime(pr,p);
+  let t=`${isFinish(pr)?`Hoy terminarías ${the(g)} en unos <b class="num">${ft(T)}</b> (con margen de prudencia).`:''}`;
+  if(!E) return t+(isFinish(pr)?' El plan te prepara para llegar a meta entera.':'');
+  t+=` La tirada larga irá de ${fk(E.L0)} a <b class="num">${fk(E.status==='corto'||E.status==='insuficiente'?E.reach:E.peak)} km</b>.`;
+  t+=' '+({
+    holgado:'Hay tiempo de sobra para prepararla con calma.',
+    justo:'Hay el tiempo justo: la constancia será la clave.',
+    corto:`Vas algo justo de semanas: la tirada más larga se quedará en unos ${fk(E.reach)} km (lo ideal son ${fk(E.peak)}). Se puede terminar, pero si puedes, elige una fecha más tarde (lo ideal: ${E.needWeeks} semanas).`,
+    insuficiente:`Con ${weeks} semanas no da tiempo a prepararla con seguridad: harían falta unas <b>${E.needWeeks}</b>. ${pr.goal==='42k'?'Te recomiendo una fecha más tarde o empezar por una media maratón.':'Te recomiendo una fecha más tarde.'}`
+  })[E.status];
+  if(E.runWalk) t+=' A tu ritmo actual, te recomiendo hacerla corriendo y andando: el plan te enseña cómo.';
+  return t;
 }
 
 export function markHint(d){
@@ -65,7 +90,7 @@ export function defaultDraft(){
 }
 
 export function draftFromProfile(p){
-  const d={...defaultDraft(),...p,hasDate:!!p.raceDate,raceDate:p.raceDate||'',targetTime:p.targetTime?ft(p.targetTime):'',raceElev:p.raceElev||2,maxMin:p.maxMin||'',hills:p.hills!==false,hrMax:p.hrMax||'',age:p.age||'',days:[...p.days]};
+  const d={...defaultDraft(),...p,hasDate:!!p.raceDate,raceDate:p.raceDate||'',targetTime:p.targetTime?ft(p.targetTime):'',aim:p.targetTime||!GOALS[p.goal].dist?'time':'finish',first:!!p.first,raceElev:p.raceElev||2,maxMin:p.maxMin||'',hills:p.hills!==false,hrMax:p.hrMax||'',age:p.age||'',days:[...p.days]};
   let marks=p.marks||[];if(!marks.length&&p.refDist&&p.refTime) marks=[{d:p.refDist,t:p.refTime,date:addDays(today(),-30)}];
   MARK_D.forEach(([dist],i)=>{const m=marks.find(x=>Math.abs(x.d-dist)<0.01);if(m){d['mt'+i]=ft(m.t);const ago=m.date?daysBetween(m.date,today()):90;d['ma'+i]=(AGE_OPTS.find(([v])=>ago<=v*1.5)||AGE_OPTS[4])[0];}});
   return d;
@@ -96,12 +121,15 @@ export function stepHTML(key){
     case 'when':{
       if(!g.dist) return {q:'¿Cuántas semanas?',h:'Al terminar el bloque podrás encadenar otro partiendo de tu nueva forma.',body:`<div class="seg big">${chipBtns('wset',[4,6,8,10,12].map(n=>[n,`${n} sem.`]),d.weeks,'data-f="weeks"')}</div>`};
       const wk=d.raceDate?Math.floor(daysBetween(monday(today()),monday(d.raceDate))/7)+1:null;
-      return {q:`Tu ${g.name.toLowerCase()==='media maratón'?'media maratón':g.name.toLowerCase()==='maratón'?'maratón':'carrera de '+g.name}`,h:'Con fecha, el plan termina justo el día de la carrera. La marca objetivo es opcional, pero hace que el plan se construya para alcanzarla.',body:`
+      return {q:`Tu ${g.name.toLowerCase()==='media maratón'?'media maratón':g.name.toLowerCase()==='maratón'?'maratón':'carrera de '+g.name}`,h:'Con fecha, el plan termina justo el día de la carrera. Si es tu primera vez o solo quieres llegar a meta, elige «Terminarla»: el plan se centra en que llegues entera.',body:`
         <div><label>¿Tienes fecha?</label><div class="seg">${chipBtns('wset',[['1','Sí, tengo fecha'],['0','Todavía no']],d.hasDate?'1':'0','data-f="hasDate"')}</div></div>
         ${d.hasDate?`<div><label for="f-race">Día de la carrera</label><input id="f-race" type="date" data-f="raceDate" value="${d.raceDate}" min="${addDays(today(),14)}"><div class="hint" id="datehint">${d.raceDate?`${fdLong(d.raceDate)} · ${wk} semanas de plan`:'Elige el día en el calendario.'}</div></div>`
           :`<div><label>Duración del plan</label><div class="seg">${chipBtns('wset',[6,8,10,12,16,20].map(n=>[n,`${n} sem.`]),d.weeks,'data-f="weeks"')}</div></div>`}
         <div><label>Perfil del recorrido</label><div class="seg">${chipBtns('wset',ELEV.map(([v,l])=>[v,l]),d.raceElev,'data-f="raceElev"')}</div><div class="hint">≈ ${Math.round((+d.raceElev||0)*g.dist/10)*10} m de desnivel positivo en total. Afecta a la predicción y a las sesiones de cuestas.</div></div>
-        <div>${timeField('f-tt','targetTime',d.targetTime,'dur','Ej. '+TARGET_PH[d.goal],'Marca objetivo <span class="muted">(opcional)</span>')}<div class="hint" id="goalhint" aria-live="polite">${goalHint(d)}</div></div>`};}
+        <div><label>¿Qué quieres conseguir?</label><div class="seg">${chipBtns('wset',[['finish','Terminarla'],['time','Hacer un tiempo']],aimOf(d),'data-f="aim"')}</div></div>
+        <div><label>¿Es tu primera ${g.dist>40?'maratón':g.dist>20?'media maratón':'carrera de '+g.name}?</label><div class="seg">${chipBtns('wset',[['1','Sí, la primera'],['0','Ya he hecho alguna']],firstOf(d)?'1':'0','data-f="first"')}</div></div>
+        ${aimOf(d)==='time'?`<div>${timeField('f-tt','targetTime',d.targetTime,'dur','Ej. '+TARGET_PH[d.goal],'Marca que quieres hacer')}<div class="hint" id="goalhint" aria-live="polite">${goalHint(d)}</div></div>`
+          :`<div class="hint" id="goalhint" aria-live="polite" style="margin-top:-4px">${goalHint(d)}</div>`}`};}
     case 'level':
       return {q:'¿Cómo estás ahora?',h:'Así empiezo a una carga que puedas asumir. Si conectaste Strava, ya viene rellenado.',body:`
         <div class="cards" role="radiogroup">${Object.entries(LEVELS).map(([k,v])=>`<button type="button" class="ocard" role="radio" data-act="wset" data-f="level" data-v="${k}" aria-checked="${d.level===k}"><b>${v.name}</b><span>${v.sub}</span></button>`).join('')}</div>
@@ -148,7 +176,7 @@ export function summaryRows(act){
   const d=draft,g=GOALS[d.goal],T=parseTime(d.targetTime);
   const rows=[
     ['goal','Objetivo',g.name],
-    ['when',g.dist?'Tu carrera':'Duración',g.dist?`${d.hasDate&&d.raceDate?fdShort(d.raceDate):`${d.weeks} semanas`} · ${elevName(d.raceElev).toLowerCase()}${T?` · ${ft(T)}`:''}`:`${d.weeks} semanas`],
+    ['when',g.dist?'Tu carrera':'Duración',g.dist?`${d.hasDate&&d.raceDate?fdShort(d.raceDate):`${d.weeks} semanas`} · ${elevName(d.raceElev).toLowerCase()}${aimOf(d)==='time'&&T?` · ${ft(T)}`:' · terminarla'}${firstOf(d)?' · la primera':''}`:`${d.weeks} semanas`],
     ['level','Nivel',`${LEVELS[d.level].name} · ${fk(parseFloat(String(d.weeklyKm).replace(',','.'))||0)} km/sem`],
     ['marks','Marcas',(()=>{const ms=MARK_D.map(([x,n],i)=>d['mt'+i]?`${n} ${d['mt'+i]}`:null).filter(Boolean);const sp=stravaPRs().filter(m=>m.d>=5).length;return ms.join(' · ')||(sp?`${sp} de Strava`:'Ninguna');})()],
     ['week','Semana',`${[...d.days].sort((a,b)=>a-b).map(i=>DAYS[i]).join(', ')} · larga el ${DAYS_L[d.longDay]}${d.maxMin?` · máx. ${d.maxMin} min`:''}`],
@@ -188,7 +216,8 @@ export function validateStep(key){
       if(daysBetween(today(),d.raceDate)<14) return 'La carrera debe ser dentro de al menos 2 semanas.';
       if(daysBetween(today(),d.raceDate)>24*7) return 'Como mucho 24 semanas. Si es más tarde, empieza con un bloque de «Ponerme en forma».';
     }
-    if(String(d.targetTime||'').trim()){const t=parseTime(d.targetTime);if(!t||t/g.dist<150||t/g.dist>720) return `Esa marca no parece correcta para ${g.name}. Escríbela como ${TARGET_PH[d.goal]}.`;}
+    if(aimOf(d)==='time'&&!String(d.targetTime||'').trim()) return 'Escribe la marca que quieres hacer, o elige «Terminarla».';
+    if(aimOf(d)==='time'&&String(d.targetTime||'').trim()){const t=parseTime(d.targetTime);if(!t||t/g.dist<150||t/g.dist>720) return `Esa marca no parece correcta para ${g.name}. Escríbela como ${TARGET_PH[d.goal]}.`;}
   }
   if(key==='level'){
     const km=parseFloat(String(d.weeklyKm).replace(',','.'));
@@ -208,7 +237,7 @@ export function validateStep(key){
 export function profileFromDraft(){
   const d=draft,g=GOALS[d.goal];
   return {name:String(d.name||'').trim().slice(0,30),goal:d.goal,raceDate:g.dist&&d.hasDate&&d.raceDate?d.raceDate:null,weeks:+d.weeks||g.defWeeks,
-    targetTime:g.dist&&String(d.targetTime||'').trim()?parseTime(d.targetTime):null,level:d.level,weeklyKm:parseFloat(String(d.weeklyKm).replace(',','.'))||0,
+    targetTime:g.dist&&aimOf(d)==='time'&&String(d.targetTime||'').trim()?parseTime(d.targetTime):null,first:!!g.dist&&firstOf(d),level:d.level,weeklyKm:parseFloat(String(d.weeklyKm).replace(',','.'))||0,
     marks:marksFromDraft(d),raceElev:g.dist?(+d.raceElev||0):0,maxMin:+d.maxMin||null,hills:d.hills!==false&&d.hills!=='0',
     days:[...d.days].sort((a,b)=>a-b),longDay:d.days.includes(+d.longDay)?+d.longDay:Math.max(...d.days),
     hrMax:+d.hrMax>120&&+d.hrMax<230?+d.hrMax:null,age:+d.age>=10&&+d.age<=90?+d.age:null,
@@ -225,7 +254,8 @@ export function previewPlan(){
     let goalText='';
     if(g.dist){
       const now=raceTime(state.fitness.p,g.dist)*(1+elevPen(state.profile));
-      goalText=G?`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}${elevPen(state.profile)>0.005?' con ese desnivel':''}. Tu objetivo, <b class="num">${ft(state.profile.targetTime)}</b>, es <b>${G.status}</b>${G.status==='poco realista'?`: lo razonable sería unos ${ft(G.realistic)}`:''}.`:`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}. El plan se adapta a cómo vayas mejorando.`;
+      if(!G&&isFinish(state.profile)) goalText=finishText(state.profile,state.fitness.p,pl.curve.length);
+      else goalText=G?`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}${elevPen(state.profile)>0.005?' con ese desnivel':''}. Tu objetivo, <b class="num">${ft(state.profile.targetTime)}</b>, es <b>${G.status}</b>${G.status==='poco realista'?`: lo razonable sería unos ${ft(G.realistic)}`:''}.`:`Hoy harías unos <b class="num">${ft(now)}</b> en ${g.name}. El plan se adapta a cómo vayas mejorando.`;
     }
     return {weeks:pl.curve.length,km0:pl.curve[0].km,peak:Math.max(...pl.curve.map(c=>c.km)),first,goalText};
   }catch(e){return null;}

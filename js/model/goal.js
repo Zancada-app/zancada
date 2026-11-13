@@ -9,6 +9,7 @@ import { predictToday } from './load.js';
 import { elevPen } from './elevation.js';
 import { addEvent, adherence, regenerate } from './adapt.js';
 import { formState } from './activities.js';
+import { finishTime, isFinish } from './finish.js';
 
 /* =========================================================
    Marca objetivo: viabilidad, trayectoria y previsión
@@ -62,7 +63,7 @@ export function racePaceNow(){ // ritmo de carrera por km para las sesiones de r
   const pr=state.profile,g=GOALS[pr.goal],p=state.fitness.p;
   const cur=raceTime(p,g.dist||5)/(g.dist||5);
   const gi=goalInfo();
-  if(!gi) return {pace:p*g.rf,cur,goal:false};
+  if(!gi) return {pace:isFinish(pr)?finishTime(pr,p)/g.dist/(1+elevPen(pr)):p*g.rf,cur,goal:false};
   // en los entrenos se usa el ritmo equivalente en llano
   const tgt=(gi.G.status==='poco realista'?Math.max(gi.G.realistic,gi.forecast):pr.targetTime)/(1+elevPen(pr))/g.dist;
   return {pace:Math.max(tgt,cur*0.96),cur,goal:true,tgt};

@@ -12,6 +12,7 @@ import { analyze } from '../model/analysis.js';
 import { PAUSE_R, inactive } from '../model/calendar.js';
 import { PHASE_TIP, weekSummary } from '../model/weekly.js';
 import { openSheet } from './router.js';
+import { finishInfo } from '../model/finish.js';
 
 function histNote(){
   const st=state.strava,h=st&&st.tokens&&st.hist;
@@ -36,8 +37,21 @@ export function marksCard(){
     ${b?`<p class="small muted" style="margin-top:8px">La marca que más pesa ahora es la de ${markName(b.d).toLowerCase()}${b.date?` (${fdMark(b.date)})`:''}. Las antiguas cuentan menos, y las de 1 km o 1 milla no se usan para calcular tu forma porque la sobrestiman. Tu forma estimada hoy: ${ft(state.fitness.p*5)} en 5 km.</p>`:''}</section>`;
 }
 
+function finishCard(){
+  const fi=finishInfo();if(!fi) return '';
+  const pr=state.profile,cls={preparada:'ok','en camino':'ok','por detrás':'w'}[fi.track];
+  const what=pr.goal==='42k'?'la maratón':pr.goal==='21k'?'la media maratón':'los '+fi.g.name;
+  return `<section class="card stack" style="gap:8px">
+    <div class="row between"><span class="eyebrow">Objetivo · terminar ${what}${pr.first?' (la primera)':''}</span><span class="chip ${cls}">${fi.track[0].toUpperCase()+fi.track.slice(1)}</span></div>
+    <div class="bar" style="height:10px;position:relative" role="img" aria-label="Tirada más larga: ${fk(fi.longest)} de ${fk(fi.peak)} km"><i style="width:${fi.prog*100}%"></i><span style="position:absolute;top:-3px;left:calc(${fi.progExp*100}% - 1px);width:2px;height:16px;background:var(--ink)"></span></div>
+    <div class="row between small"><span class="muted">Tu tirada más larga</span><b class="num">${fk(fi.longest)} de ${fk(fi.peak)} km</b></div>
+    <div class="row between small"><span class="muted">Tiempo estimado hoy</span><b class="num">unos ${ft(fi.T)}</b></div>
+    <div class="row between small"><span class="muted">Ritmo para salir</span><b class="num">${fp(fi.pace*1.03)} /km</b></div>
+    <p class="small muted">Probabilidad de terminarla: ${fi.prob}. La raya negra marca dónde deberías estar a estas alturas.${fi.runWalk?' Te recomiendo correr y andar desde el principio el día de la carrera.':''}</p></section>`;
+}
+
 export function goalCard(){
-  const gi=goalInfo();if(!gi) return '';
+  const gi=goalInfo();if(!gi) return finishCard();
   return `<section class="card stack" style="gap:8px">
     <div class="row between"><span class="eyebrow">Objetivo · ${gi.g.name} en ${ft(gi.target)}</span><span class="chip ${TRACK_CLS[gi.track]}">${gi.track[0].toUpperCase()+gi.track.slice(1)}</span></div>
     <div class="bar" style="height:10px;position:relative" role="img" aria-label="Progreso hacia el objetivo: ${Math.round(gi.prog*100)} %"><i style="width:${gi.prog*100}%"></i><span style="position:absolute;top:-3px;left:calc(${gi.progExp*100}% - 1px);width:3px;height:16px;background:var(--ink);border-radius:2px"></span></div>

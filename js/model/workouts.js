@@ -8,6 +8,8 @@ import { wxFor } from './weather.js';
 import { elevName, elevPen } from './elevation.js';
 import { goalInfo, racePaceNow, raceTime, trainP } from './goal.js';
 import { hrMaxNow } from './activities.js';
+import { finishTime, isFinish, runWalkAdvised } from './finish.js';
+import { predictToday } from './load.js';
 
 /* ---------- descripción de cada sesión con ritmos actuales ---------- */
 /* ---------- Zonas de pulso ---------- */
@@ -60,6 +62,12 @@ export function describe(s){
       B({k:'main',t:'Tirada',dist:km-fin,lo:E.lo,hi:E.hi,z:[2,2],text:(pr.raceElev||0)>=8&&g.dist?'Si puedes, por un recorrido con subidas parecido al de tu carrera.':'Constante y tranquilo.'});
       if(fin) B({k:'main',t:'Final a ritmo de carrera',dist:fin,lo:rpN.pace*0.99,hi:rpN.pace*1.01,z:[3,3]});
       if(km>=14) r.tips.push('Lleva agua o bebida si vas a pasar de 75 minutos.');
+      if(state.plan&&state.plan.longs&&!s.rpFinish){
+        const peak=Math.max(...state.plan.longs);
+        if(km>=peak-0.5) r.tips.unshift(`Es la tirada más larga del plan. Si llegas a hacerla, tienes lo que hace falta para terminar ${g.name.toLowerCase()==='maratón'?'la maratón':g.name.toLowerCase()==='media maratón'?'la media':'la carrera'}.`);
+        if(km>=16) r.tips.push('Practica lo que tomarás en carrera: agua o bebida y, a partir de la hora, un gel cada 30–40 minutos.');
+        if(state.plan.finish&&state.plan.finish.runWalk) r.tips.push('Puedes hacerla corriendo y andando (por ejemplo, 4 minutos corriendo y 1 andando) desde el principio: es la misma estrategia que te recomiendo para la carrera.');
+      }
       r.tips.push('Importa el tiempo en pie, no la velocidad.');
       break;}
     case 'series':{
@@ -111,14 +119,19 @@ export function describe(s){
       r.tips.push('Elige un recorrido llano. Con el tiempo de los 5 km recalculo todos tus ritmos.');
       break;
     case 'race':{
-      const pen=elevPen(pr),T=raceTime(p,g.dist)*(1+pen),gi=state.plan?goalInfo():null;
+      const pen=elevPen(pr),fin=isFinish(pr),T=fin?finishTime(pr,p):predictToday(p,g.dist)*(1+pen),gi=state.plan?goalInfo():null;
       const go=gi&&gi.target>=T*0.985?gi.target:T,pace=go/g.dist;
       Object.assign(r,{rpe:9,pf:pace/p,lo:pace*0.99,hi:pace*1.01});
       if(g.dist<=10){cal(2,'Más 4 rectas cortas 10 minutos antes de la salida.');}
-      else B({k:'cal',t:'Calentamiento',dur:600,lo:WU.lo,hi:WU.hi,z:[1,1],text:'Solo 10 minutos muy suaves: guarda energía.'});
+      else B({k:'cal',t:'Calentamiento',dur:600,lo:Math.max(WU.lo,pace*1.08),hi:Math.max(WU.hi,pace*1.2),z:[1,1],text:'Solo 10 minutos muy suaves: guarda energía.'});
       const first=Math.min(2,g.dist*0.1);
-      B({k:'main',t:'Salida',dist:first,lo:pace*1.01,hi:pace*1.02,z:[3,4],text:'Algo más lento: no te dejes llevar por la gente.'});
-      B({k:'main',t:'Carrera',dist:g.dist-first,lo:r.lo,hi:r.hi,z:[4,5],text:`Meta prevista: ${ft(go)}.`});
+      B({k:'main',t:'Salida',dist:fin?Math.min(5,g.dist*0.25):first,lo:pace*(fin?1.03:1.01),hi:pace*(fin?1.05:1.02),z:[3,4],text:fin?'Más lento de lo que te pide el cuerpo: hoy se gana llegando entero.':'Algo más lento: no te dejes llevar por la gente.'});
+      B({k:'main',t:'Carrera',dist:g.dist-(fin?Math.min(5,g.dist*0.25):first),lo:r.lo,hi:r.hi,z:fin?[3,4]:[4,5],text:fin?`Meta prevista: unos ${ft(go)}. El objetivo es llegar: si dudas, más lento.`:`Meta prevista: ${ft(go)}.`});
+      if(fin||pr.first){
+        if(g.dist>20) r.tips.push('Bebe en todos los avituallamientos desde el principio, aunque no tengas sed, y toma un gel cada 30–40 minutos a partir de la primera hora.');
+        r.tips.push('La segunda mitad decide: si al pasar la mitad vas cómodo, mantén; si vas sobrado en el último cuarto, entonces aprieta.');
+        if(runWalkAdvised(pr,go)) r.tips.push('Corre y anda desde el principio (por ejemplo, 4 minutos corriendo y 1 andando): llegarás más entero que corriendo sin parar hasta no poder.');
+      }
       if(gi&&go!==gi.target) r.tips.push(`Tu objetivo era ${ft(gi.target)}, pero tu forma de hoy da para ${ft(T)}. Sal a ${fp(T/g.dist)} /km y, si a mitad de carrera vas sobrado, aprieta.`);
       if(pen>0.008) r.tips.push(`Recorrido ${elevName(pr.raceElev).toLowerCase()}: es un ritmo medio. En las subidas ve por esfuerzo, no por ritmo, y recupera en las bajadas.`);
       r.tips.push('Nada nuevo hoy: ni zapatillas, ni geles, ni desayuno.');

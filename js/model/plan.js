@@ -102,6 +102,7 @@ export function buildWeek(i){
   let easyKm=easyDays.length?Math.min(Math.max(3,rem/easyDays.length),Math.max(3,longKm*0.8)):0;
   if(easyKm>capE){const lost=(easyKm-capE)*easyDays.length;easyKm=Math.max(2,capE);longKm=Math.min(longKm+lost*0.5,g.longCap*L.longMult*AG.longMult);}
   if(!easyDays.length&&rem>0) longKm=Math.min(longKm+rem*0.5,g.longCap*L.longMult*AG.longMult);
+  if(plan.longs&&plan.longs[i]!=null&&!rw) longKm=plan.longs[i]*Math.min(1,ad.load); // progresión propia de la tirada larga
   const mk=(d,type,k,extra)=>Object.assign({id:uid(),date:addDays(wkStart,d),week:i,type,km:r05(k),status:'pending',load:ad.load},extra||{});
   let out=[];
   if(rw){

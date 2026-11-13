@@ -53,6 +53,8 @@ export function bindEvents(){
         if(f==='hasDate') draft.hasDate=v==='1';
         else if(f==='hills') draft.hills=v==='1';
         else if(f==='strength') draft.strength=v==='1';
+        else if(f==='first') draft.first=v==='1';
+        else if(f==='aim'){draft.aim=v;}
         else{draft[f]=v;if(f==='goal'){draft.weeks=GOALS[v].defWeeks;if(!GOALS[v].dist)draft.targetTime='';}if(f==='weeks')draft.weeks=+v;if(f==='longDay')draft.longDay=+v;if(f==='raceElev'||/^ma\d$/.test(f))draft[f]=+v;}
         wizRerender();if(f==='refDist'&&v){const i=$('#f-rt');if(i)i.focus();}break;}
       case 'wday':{readDraftInputs();const v=+t.dataset.v,i=draft.days.indexOf(v);if(i>=0)draft.days.splice(i,1);else draft.days.push(v);

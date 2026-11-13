@@ -12,6 +12,7 @@ import { goalCheck, goalEval } from './goal.js';
 import { activities, hrMaxNow } from './activities.js';
 import { applyEasyUntil, resumePlan } from './calendar.js';
 import { cycleSchedule } from './cycle.js';
+import { currentLong, finishEval, longPlan, needsLongPlan } from './finish.js';
 
 /* =========================================================
    Motor de adaptación
@@ -46,6 +47,9 @@ export function createPlan(pr,keep){
   const G=goalEval(pr,p,curve.length);
   if(G&&G.needed>0.02) curve=buildCurve(pr,pr.weeklyKm,start,rw,clamp(G.needed,0,0.15)*0.8);
   state.plan={start,curve,rw:rw!==false,rwStart:rw===false?0:rw,rwWeeks:curve.rwWeeks,created:td,goal:G};
+  // terminarla / primera vez: la tirada larga sube poco a poco hasta la distancia que da seguridad
+  if(needsLongPlan(pr)){const L0=old&&old.plan&&old.plan.long0&&!old.plan.longs?old.plan.long0:currentLong(pr);
+    state.plan.long0=L0;state.plan.longs=longPlan(pr,curve,p,L0);state.plan.finish=finishEval(pr,p,curve.length,L0);}
   state.sessions=old?state.sessions.filter(s=>s.status!=='pending'):[];
   state.plan.curve.forEach((_,i)=>state.sessions.push(...buildWeek(i)));
   sortSessions();
