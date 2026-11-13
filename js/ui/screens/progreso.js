@@ -14,6 +14,7 @@ import { shoesCard } from '../shoes.js';
 import { barChart, formChart, lineChart } from '../charts.js';
 import { MAN_TYPES } from './manual.js';
 import { cycleInsightCard } from '../cycle.js';
+import { xtCard, xtRecent, xtRow } from '../xtrain.js';
 
 export function racePrediction(){
   const pr=state.profile,g=GOALS[pr.goal];
@@ -62,12 +63,15 @@ export function renderProgreso(){
   const a=adherence(28),f=formState(),ad=state.adapt;
   const pred=[['5 km',5],['10 km',10],['Media',21.0975],['Maratón',42.195]].map(([n,d])=>`<div><b class="num">${ft(predictToday(p,d))}</b><span>${n}</span></div>`).join('');
   const evs=state.adapt.events.map(e=>`<div class="ev"><span class="mk ${e.kind}" aria-hidden="true"></span><div><span class="small muted">${fdShort(e.date)} · ${e.kind==='up'?'Sube':e.kind==='down'?'Baja':'Ajuste'}</span><p>${esc(e.text)}</p></div></div>`).join('');
-  const hist=acts.slice().reverse().slice(0,20).map(x=>{
+  const histRuns=acts.slice().reverse().slice(0,20).map(x=>{
     const ses=x.session||(x.run&&x.run.sessionId?state.sessions.find(s=>s.id===x.run.sessionId):null);
     const title=ses?((ses.snap&&ses.snap.title)||TYPES[ses.type].n):x.manual?(MAN_TYPES.find(m=>m[0]===x.manual.type)||MAN_TYPES[5])[1]:(x.run?esc(x.run.name)||'Carrera':'Carrera');
     const rpe=ses&&ses.log?ses.log.rpe+'/10':'';
     const act=ses?`data-act="open" data-id="${ses.id}"`:x.manual?`data-act="manopen" data-id="${x.manual.id}"`:'';
-    return `<${act?'button':'div'} class="item" ${act}><span class="date">${DAYS[dow(x.date)]}<b class="num">${pd(x.date).getDate()}</b></span><span class="grow"><span class="t">${title}</span>${x.src==='strava'?' <span class="src">Strava</span>':''}${!ses&&state.plan&&x.date>=state.plan.created?' <span class="src">fuera del plan</span>':''}<br><span class="s num">${fk(x.km)} km${x.sec?' · '+ft(x.sec)+' · '+fp(x.sec/x.km)+' /km':''}${x.elev>=30?' · +'+Math.round(x.elev)+' m':''}${x.hr?' · '+Math.round(x.hr)+' ppm':''}</span></span><span class="status num">${rpe||(x.manual?x.manual.rpe+'/10':'')}</span></${act?'button':'div'}>`;}).join('');
+    return `<${act?'button':'div'} class="item" ${act}><span class="date">${DAYS[dow(x.date)]}<b class="num">${pd(x.date).getDate()}</b></span><span class="grow"><span class="t">${title}</span>${x.src==='strava'?' <span class="src">Strava</span>':''}${!ses&&state.plan&&x.date>=state.plan.created?' <span class="src">fuera del plan</span>':''}<br><span class="s num">${fk(x.km)} km${x.sec?' · '+ft(x.sec)+' · '+fp(x.sec/x.km)+' /km':''}${x.elev>=30?' · +'+Math.round(x.elev)+' m':''}${x.hr?' · '+Math.round(x.hr)+' ppm':''}</span></span><span class="status num">${rpe||(x.manual?x.manual.rpe+'/10':'')}</span></${act?'button':'div'}>`;});
+  // historial: carreras y otros entrenos juntos, del más reciente al más antiguo
+  const runRows=acts.slice().reverse().slice(0,20).map((x,k)=>({date:x.date,html:histRuns[k]}));
+  const hist=runRows.concat(xtRecent(20).map(x=>({date:x.date,html:xtRow(x)}))).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0).slice(0,25).map(x=>x.html).join('');
   app.innerHTML=`<div class="stack-lg">
    <header class="stack" style="gap:6px"><div class="lanes" aria-hidden="true"></div><h1>Progreso</h1></header>
    <div class="tiles">
@@ -85,10 +89,11 @@ export function renderProgreso(){
    <section class="card stack"><h3>Kilómetros por semana</h3>${barChart()}</section>
    <section class="card stack"><h3>Forma y fatiga</h3>${formChart()}</section>
    <section class="card stack"><h3>Tu 5 km estimado</h3>${lineChart()}</section>
+   ${xtCard()}
    ${cycleInsightCard()}
    ${shoesCard()}
    <section class="card stack" style="gap:4px"><h3>Cómo se ha adaptado tu plan</h3>${evs||'<p class="muted small">Aún no hay ajustes.</p>'}</section>
-   <section class="card stack" style="gap:0"><div class="row between" style="margin-bottom:6px"><h3>Historial · ${fk(totalKm)} km</h3><button type="button" class="ghost addbtn" data-act="addrun">+ Añadir</button></div>${hist||'<p class="muted small">Todavía no hay carreras.</p>'}${stravaOn()?'<p class="src" style="margin-top:8px">Datos de actividad: Strava</p>':''}</section>
+   <section class="card stack" style="gap:0"><div class="row between" style="margin-bottom:6px"><h3>Historial · ${fk(totalKm)} km</h3><button type="button" class="ghost addbtn" data-act="addrun">+ Añadir</button></div>${hist||'<p class="muted small">Todavía no hay entrenos.</p>'}${stravaOn()?'<p class="src" style="margin-top:8px">Datos de actividad: Strava</p>':''}</section>
   </div>`;
 }
 

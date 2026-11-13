@@ -6,6 +6,7 @@ import { QUALITY } from './constants.js';
 import { state } from '../core/store.js';
 import { curWeek } from './adapt.js';
 import { inactive } from './calendar.js';
+import { xtStrengthWeek } from './xtrain.js';
 
 /* =========================================================
    Fuerza y movilidad
@@ -31,6 +32,15 @@ export function strengthDays(mon){
   const out=[];
   for(const x of cand){if(out.length>=want)break;if(x.sc<0)break;if(out.every(o=>Math.abs(daysBetween(o,x.d))>=2))out.push(x.d);}
   return out.sort().map((d,i)=>({date:d,key:i%2?'B':'A'}));
+}
+
+/** ¿Sesión de fuerza del plan hecha? Marcada como hecha, o cubierta por un entreno de fuerza,
+ *  gimnasio, pilates, barre… apuntado esa semana (cubren las sesiones del plan por orden). */
+export function strengthDoneOn(date){
+  const sd=state.strengthDone||{};if(sd[date]) return {how:'marked'};
+  const mon=monday(date),days=strengthDays(mon).map(x=>x.date).filter(d=>!sd[d]);
+  const xs=xtStrengthWeek(mon).filter(x=>!sd[x.date]),i=days.indexOf(date);
+  return i>=0&&i<xs.length?{how:'xt',x:xs.find(x=>x.date===date)||xs[i]}:null;
 }
 
 export function strengthToday(){const td=today();return strengthDays(monday(td)).find(x=>x.date===td)||null;}

@@ -252,3 +252,8 @@ textarea{min-height:64px}
 .zrow.shoe{flex-direction:column;align-items:stretch;gap:6px;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0;min-height:0;font-weight:400}
 .zrow.shoe:last-of-type{border-bottom:0}
 .zrow.shoe b{font-weight:600}
+
+/* otros entrenos: rejilla de tipos */
+.xtg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.xtg button{display:flex;align-items:center;gap:8px;text-align:left;justify-content:flex-start;min-height:48px;padding:8px 12px;font-weight:600;font-size:14px;line-height:1.2}
+.xtg button span{font-size:20px;flex:0 0 auto}

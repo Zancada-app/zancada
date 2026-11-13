@@ -10,6 +10,8 @@ import { toast } from '../ui/toast.js';
 import { setBusy } from '../ui/actions.js';
 import { autoAssignShoes, syncStravaShoes } from '../model/shoes.js';
 import { archiveMark, markP, summaryMark } from '../model/marks.js';
+import { mergeStravaXt, xtFromStrava } from '../model/xtrain.js';
+import { rpeFromHR } from '../model/activities.js';
 
 /* =========================================================
    Strava
@@ -145,6 +147,9 @@ export async function stravaSync(){
     }
     const known=new Map(s.runs.map(r=>[r.id,r]));
     let added=0;
+    // otros entrenos (gimnasio, bici, pilates, natación…): solo el resumen
+    const xts=list.map(a=>xtFromStrava(a,rpeFromHR)).filter(Boolean);
+    const xtAdded=mergeStravaXt(xts);
     list.filter(a=>RUN_TYPES.includes(a.sport_type||a.type)&&a.distance>300).forEach(a=>{
       const ex=known.get(a.id);
       if(ex){ex.name=String(a.name||'').slice(0,80);if(a.perceived_exertion)ex.rpe=a.perceived_exertion;}
@@ -177,7 +182,7 @@ export async function stravaSync(){
     s.lastSync=Date.now();if(!s.firstSync)s.firstSync=s.lastSync;
     const res=afterSync();
     save();
-    return Object.assign({added},res);
+    return Object.assign({added,xtAdded},res);
   }finally{syncing=false;setSyncUI();}
 }
 

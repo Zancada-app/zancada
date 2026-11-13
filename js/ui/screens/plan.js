@@ -12,6 +12,8 @@ import { inactive } from '../../model/calendar.js';
 import { app } from '../dom.js';
 import { strengthRow } from '../strength.js';
 import { chipFor } from './hoy.js';
+import { xtIn } from '../../model/xtrain.js';
+import { xtRow } from '../xtrain.js';
 
 // semanas desplegadas en Plan: se recuerdan mientras usas la app
 export let openWeeks=null;
@@ -24,7 +26,7 @@ export function renderPlan(){
     const wkS=addDays(plan.start,i*7);
     const km=ss.filter(s=>!inactive(s)).reduce((a,s)=>a+s.km,0);
     const done=ss.filter(s=>s.status==='done').length;
-    const strRows=strengthDays(wkS).map(x=>({date:x.date,html:strengthRow(x)}));
+    const strRows=strengthDays(wkS).map(x=>({date:x.date,html:strengthRow(x)})).concat(xtIn(wkS,addDays(wkS,6)).map(x=>({date:x.date,html:xtRow(x)})));
     const rows=ss.map(s=>{const d=describe(s),a=s.status==='done'?analyze(s):null;
       const timeBased=['runwalk','fartlek','cuestas'].includes(s.type);
       return `<button class="item" data-act="open" data-id="${s.id}">

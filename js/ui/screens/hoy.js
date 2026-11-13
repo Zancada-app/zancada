@@ -22,6 +22,8 @@ import { RPE_OPTS } from '../actions.js';
 import { refOfSession } from '../../model/shoes.js';
 import { shoeAlertCard, shoeSetHTML } from '../shoes.js';
 import { cycleCard, cycleNoteHTML } from '../cycle.js';
+import { xtIn } from '../../model/xtrain.js';
+import { xtRow, xtWeekText } from '../xtrain.js';
 
 export function chipFor(s){const t=TYPES[s.type];return `<span class="chip ${t.c}">${t.k}</span>`;}
 
@@ -65,12 +67,13 @@ export function renderHoy(){
       <div class="row wrap" style="gap:6px">${c?`<span class="chip">Semana ${cw+1} de ${plan.curve.length}</span><span class="chip">${PHASE_N[c.phase]}</span>${c.down?'<span class="chip ok">Semana de descarga</span>':''}`:''}${race?`<span class="chip q">${(n=>n===0?`${g.name}: ¡hoy es el día!`:n===1?`${g.name} mañana`:`${g.name} en ${n} días`)(daysBetween(td,race.date))}</span>`:''}</div>
     </header>
     ${stravaBar}
-    <section class="stack" style="gap:8px"><div class="row between"><h3>Esta semana</h3><button type="button" class="ghost addbtn" data-act="addrun" aria-label="Añadir entreno">+ Añadir entreno</button></div><div class="row between" style="margin-top:-4px"><span class="small muted num">${fk(kmDone)} de ${fk(kmPlan)} km</span></div><div class="week">${wkDays}</div></section>
+    <section class="stack" style="gap:8px"><div class="row between"><h3>Esta semana</h3><button type="button" class="ghost addbtn" data-act="addrun" aria-label="Añadir entreno">+ Añadir entreno</button></div><div class="row between" style="margin-top:-4px"><span class="small muted num">${fk(kmDone)} de ${fk(kmPlan)} km</span>${(t=>t?`<span class="small muted">${t}</span>`:'')(xtWeekText(mon))}</div><div class="week">${wkDays}</div></section>
     ${feelCard}
     ${checkinCard()}
     ${cycleCard()}
     ${main}
     ${(x=>x?`<div class="list card" style="padding:0 14px">${strengthRow(x)}</div>`:'')(strengthToday())}
+    ${(l=>l.length?`<div class="list card" style="padding:0 14px">${l.map(xtRow).join('')}</div>`:'')(xtIn(td,td))}
     ${shoeAlertCard()}
     ${summaryCard(true)}
     ${goalCard()}

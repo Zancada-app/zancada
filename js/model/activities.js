@@ -9,6 +9,7 @@ import { fitnessFromHR, updateHR } from './heartrate.js';
 import { loadOf } from './load.js';
 import { goalCheck } from './goal.js';
 import { addEvent, logDone, regenerate, setFitness, setLoad, sortSessions } from './adapt.js';
+import { xtByDate } from './xtrain.js';
 
 export const BE_NAMES={'1k':'1 km','1 mile':'1 milla','2 mile':'2 millas','5k':'5 km','10k':'10 km','15k':'15 km','10 mile':'10 millas','20k':'20 km','Half-Marathon':'media maratón','30k':'30 km','Marathon':'maratón'};
 
@@ -116,10 +117,13 @@ export function activities(){
 export function loadSeries(){
   const p=state.fitness?state.fitness.p:315,acts=activities(),by={};
   acts.forEach(a=>{by[a.date]=(by[a.date]||0)+loadOf(a,p);});
-  if(!acts.length) return [];
+  // los otros entrenos (fuerza, bici, pilates…) también cansan: cuentan para la fatiga y la forma
+  const xb=xtByDate();Object.entries(xb).forEach(([d,l])=>{if(d<=today())by[d]=(by[d]||0)+l;});
+  const days=Object.keys(by).sort();
+  if(!days.length) return [];
   const kC=1-Math.exp(-1/42),kA=1-Math.exp(-1/7);
   let ctl=0,atl=0;const out=[];
-  for(let d=acts[0].date;d<=today();d=addDays(d,1)){
+  for(let d=days[0];d<=today();d=addDays(d,1)){
     const l=by[d]||0;ctl+=(l-ctl)*kC;atl+=(l-atl)*kA;
     out.push({date:d,ctl,atl,tsb:ctl-atl,load:l});
   }

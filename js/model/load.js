@@ -8,6 +8,7 @@ import { lthrNow } from './heartrate.js';
 import { gapFromElev } from './elevation.js';
 import { raceTime } from './goal.js';
 import { activities, hrMaxNow, loadSeries } from './activities.js';
+import { xtImpact, xtIn } from './xtrain.js';
 
 /* =========================================================
    Carga de cada entreno: pulso (TRIMP), ritmo o esfuerzo percibido · impacto · reparto · rendimiento
@@ -55,7 +56,7 @@ export function plannedLoad(s,p){
 
 export function impactInfo(){
   const td=today(),acts=activities().filter(a=>a.date<=td);
-  const sum=(from,to)=>acts.filter(a=>a.date>=from&&a.date<=to).reduce((t,a)=>t+loadParts(a,state.fitness.p).impact,0);
+  const sum=(from,to)=>acts.filter(a=>a.date>=from&&a.date<=to).reduce((t,a)=>t+loadParts(a,state.fitness.p).impact,0)+xtIn(from,to).reduce((t,x)=>t+xtImpact(x),0);
   const w=sum(addDays(td,-6),td),avg=sum(addDays(td,-34),addDays(td,-7))/4;
   return avg>5?{w,avg,ratio:w/avg}:null;
 }

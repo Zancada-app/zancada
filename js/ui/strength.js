@@ -1,9 +1,10 @@
 /**
  * Hoja con la rutina de fuerza y fila del día.
  */
-import { DAYS, dow, fdLong, pd } from '../core/util.js';
+import { DAYS, dow, esc, fdLong, pd } from '../core/util.js';
 import { state } from '../core/store.js';
-import { MOBILITY, STRENGTH, strengthSets } from '../model/strength.js';
+import { MOBILITY, STRENGTH, strengthDoneOn, strengthSets } from '../model/strength.js';
+import { xtName } from '../model/xtrain.js';
 import { openSheet } from './router.js';
 
 export function openStrength(date,key){
@@ -17,6 +18,6 @@ export function openStrength(date,key){
 }
 
 export function strengthRow(x){
-  const done=(state.strengthDone||{})[x.date];
-  return `<button class="item" data-act="stropen" data-d="${x.date}" data-k="${x.key}"><span class="date">${DAYS[dow(x.date)]}<b class="num">${pd(x.date).getDate()}</b></span><span class="grow"><span class="t">${STRENGTH[x.key].n}</span><br><span class="s">Fuerza y movilidad · ${strengthSets()===1?'10':'20'} min</span></span>${done?'<span class="status d">Hecha</span>':'<span class="chip">Fuerza</span>'}</button>`;
+  const st=strengthDoneOn(x.date),done=!!st;
+  return `<button class="item" data-act="stropen" data-d="${x.date}" data-k="${x.key}"><span class="date">${DAYS[dow(x.date)]}<b class="num">${pd(x.date).getDate()}</b></span><span class="grow"><span class="t">${STRENGTH[x.key].n}</span><br><span class="s">Fuerza y movilidad · ${strengthSets()===1?'10':'20'} min</span></span>${done?`<span class="status d">${st.how==='xt'?esc(xtName(st.x)):'Hecha'}</span>`:'<span class="chip">Fuerza</span>'}</button>`;
 }

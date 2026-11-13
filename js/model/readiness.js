@@ -9,6 +9,7 @@ import { addEvent } from './adapt.js';
 import { formState } from './activities.js';
 import { startPause } from './calendar.js';
 import { addPeriodStart, askSymptoms, cycle, cycleOn, cycleSchedule, phaseOf } from './cycle.js';
+import { xtHardOn, xtName } from './xtrain.js';
 
 /* =========================================================
    Estado del día: chequeo rápido + carga + recuperación → hazla / suavízala / descansa
@@ -32,7 +33,9 @@ export function readiness(date){
   let sc=72;const why=[];
   const f=formState();if(f){sc+=clamp(f.tsb,-30,20)*0.6;if(f.tsb<-15)why.push('carga acumulada alta');}
   const y=addDays(date,-1),hardY=state.sessions.some(s=>s.date===y&&s.status==='done'&&(QUALITY.includes(s.type)||s.type==='long'));
+  const xy=!hardY&&xtHardOn(y);
   if(hardY){sc-=12;why.push('ayer fue un día exigente');}
+  else if(xy){sc-=10;why.push(`ayer hiciste ${xtName(xy).toLowerCase()} exigente`);}
   sc+={3:6,2:0,1:-16}[c.sleep];if(c.sleep===1)why.push('has dormido mal');
   sc+={3:6,2:0,1:-16}[c.legs];if(c.legs===1)why.push('piernas cargadas');
   sc+={3:3,2:0,1:-10}[c.stress];if(c.stress===1)why.push('estrés alto');

@@ -84,7 +84,8 @@ export async function doSync(manual){
   }
   if(state.plan&&processMissed()) save();
   if(r){save();route();
-    if(manual||r.added) toast(r.added?`Strava: ${r.added} ${r.added===1?'carrera nueva':'carreras nuevas'}${r.matched?`, ${r.matched} emparejada${r.matched>1?'s':''} con el plan`:''}.${r.fit||r.fat?' Plan ajustado.':''}`:'Todo al día: no hay carreras nuevas en Strava.');
+    const xa=r.xtAdded?`${r.xtAdded} ${r.xtAdded===1?'entreno':'entrenos'} de otro tipo`:'';
+    if(manual||r.added||r.xtAdded) toast(r.added?`Strava: ${r.added} ${r.added===1?'carrera nueva':'carreras nuevas'}${r.matched?`, ${r.matched} emparejada${r.matched>1?'s':''} con el plan`:''}${xa?' y '+xa:''}.${r.fit||r.fat?' Plan ajustado.':''}`:xa?`Strava: ${xa}.`:'Todo al día: no hay carreras nuevas en Strava.');
   }else route();
 }
 

@@ -26,12 +26,13 @@ import { closeSheet, lastTab, route, setLastTab } from './router.js';
 import { askSkip, confirmReset, openLog, submitLog } from './actions.js';
 import { applyShoeSet, openShoe, pickShoeKind, saveShoe, shoeAction, touchShoeLimit } from './shoes.js';
 import { cycleAction } from './cycle.js';
+import { delXt, openAddChooser, openXtForm, saveXt, xtSet } from './xtrain.js';
 
 /* ---------- Eventos ---------- */
 export let lastAct={a:null,t:0},geoResults=[];
 
 // solo se protegen del doble toque las acciones que confirman o cambian de pantalla; las de elegir opciones van sin freno
-export const GUARDED=new Set(['cycsave','cycstart','cycend','cycok','cycdel','cycadd','cycoff2','shoesave','shoeretire','shoeunretire','shoedel','shoeswap','shoeack','shoeopen','wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
+export const GUARDED=new Set(['xtsave','xtdel','cycsave','cycstart','cycend','cycok','cycdel','cycadd','cycoff2','shoesave','shoeretire','shoeunretire','shoedel','shoeswap','shoeack','shoeopen','wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
 
 /** Registra los manejadores globales (delegación de eventos). Se llama una vez desde main.js. */
 export function bindEvents(){
@@ -101,7 +102,14 @@ export function bindEvents(){
           .catch(()=>{box.innerHTML='<span class="small muted">Sin conexión con el servicio del tiempo. Inténtalo luego.</span>';});break;}
       case 'geopick':{readDraftInputs();draft.city=geoResults[+t.dataset.i];if(!draft.runHour)draft.runHour='8';wizRerender();break;}
       case 'geoclear':{readDraftInputs();draft.city=null;wizRerender();break;}
-      case 'addrun': openAddRun();break;
+      case 'addrun': openAddChooser();break;
+      case 'addrunform': openAddRun();break;
+      case 'xtnew': openXtForm(t.dataset.v);break;
+      case 'xtback': openAddChooser();break;
+      case 'xtset': xtSet(t);break;
+      case 'xtsave': saveXt();break;
+      case 'xtdel': delXt(id);break;
+      case 'xtopen': openXtForm(null,id);break;
       case 'addset': readAddRun();addDraft[t.dataset.f]=t.dataset.v;renderAddRun();break;
       case 'addrpe': addDraft.rpe=+t.dataset.v;t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-checked',String(b===t)));$('#aerr').textContent='';break;
       case 'addsave': saveAddRun();break;
