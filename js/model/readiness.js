@@ -8,6 +8,7 @@ import { STRUCT, describe } from './workouts.js';
 import { addEvent } from './adapt.js';
 import { formState } from './activities.js';
 import { startPause } from './calendar.js';
+import { addPeriodStart, askSymptoms, cycle, cycleOn, cycleSchedule, phaseOf } from './cycle.js';
 
 /* =========================================================
    Estado del día: chequeo rápido + carga + recuperación → hazla / suavízala / descansa
@@ -19,6 +20,13 @@ export const CHK=[
   ['pain','Molestias',[[3,'Ninguna'],[2,'Leve'],[1,'Dolor']]]
 ];
 
+/** Filas del chequeo de un día: las fijas y, si toca, los síntomas del ciclo. */
+export function chkRows(date=today()){
+  if(!askSymptoms(date)) return CHK;
+  const c=cycle(),lbl=c.mode==='otro'?'Síntomas hormonales':'Síntomas de regla';
+  return CHK.concat([['cyc',lbl,[[3,'Ninguno'],[2,'Leves'],[1,'Fuertes']]]]);
+}
+
 export function readiness(date){
   const c=(state.checkins||{})[date];if(!c) return null;
   let sc=72;const why=[];
@@ -29,8 +37,10 @@ export function readiness(date){
   sc+={3:6,2:0,1:-16}[c.legs];if(c.legs===1)why.push('piernas cargadas');
   sc+={3:3,2:0,1:-10}[c.stress];if(c.stress===1)why.push('estrés alto');
   sc+={3:0,2:-15,1:-60}[c.pain];if(c.pain===2)why.push('molestia leve');if(c.pain===1)why.push('dolor');
+  if(c.cyc){const w=(cycle()&&cycle().mode==='otro')?'síntomas hormonales':'síntomas de regla';sc+={3:0,2:-8,1:-25}[c.cyc];if(c.cyc===2)why.push(w+' leves');if(c.cyc===1)why.push(w+' fuertes');}
   sc=Math.round(clamp(sc,0,100));
-  const v=c.pain===1?'rest':sc>=65?'go':sc>=45?'soft':'easy';
+  let v=c.pain===1?'rest':sc>=65?'go':sc>=45?'soft':'easy';
+  if(c.cyc===1&&v==='go')v='soft';
   return {sc,v,why};
 }
 
@@ -55,4 +65,8 @@ export function doNot100(s,v){
     applyMod(s,QUALITY.includes(s.type)||s.type==='long'?'easy':'short','molestia');
     if(ad.aches.length>=2) addEvent('down','Es la segunda molestia en una semana. Si no mejora, pausa el plan por lesión y consulta a un fisioterapeuta.');
   }else if(v==='sick'){applyMod(s,'rest','enfermedad');startPause('enfermedad',null);}
+  else if(v==='period'){
+    const p=phaseOf(td);if(cycleOn()&&cycle().mode==='natural'&&(!p||!p.inPeriod)&&addPeriodStart(td))cycleSchedule();
+    applyMod(s,QUALITY.includes(s.type)||s.type==='long'?'easy':'short','regla');
+  }
 }

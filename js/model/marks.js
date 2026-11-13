@@ -20,16 +20,29 @@ export const markP=(t,d)=>t*Math.pow(5/d,1.06)/5;
 // una marca antigua cuenta menos: +1 % de ritmo por mes a partir del mes y medio, hasta un 10 %
 export function decayP(p,date){const days=date?Math.max(0,daysBetween(date,today())):60;return p*(1+clamp((days/30.4-1.5)*0.01,0,0.10));}
 
+/** Marca que da una carrera completa de la distancia (por si Strava no ha calculado sus mejores esfuerzos). */
+export function summaryMark(r){
+  if(!(r.km>0)||!(r.sec>0)) return null;
+  const key=Object.keys(PR_KEYS).find(k=>PR_KEYS[k]>=5&&r.km>=PR_KEYS[k]*0.985&&r.km<=PR_KEYS[k]*1.05);
+  return key?{key,t:Math.round(r.sec*Math.min(1,PR_KEYS[key]/r.km)),race:!!r.race}:null;
+}
+
+/** Guarda una marca de una actividad antigua (fuera del año que se guarda completo). */
+export function archiveMark(s,key,t,date,id,o={}){
+  if(!(key in PR_KEYS)||!(t>0)) return;
+  const a=s.prArchive||(s.prArchive={}),cur=a[key];
+  if(!cur||t<cur.t) a[key]={t,date,id,race:!!o.race,approx:!!o.approx};
+}
+
 export function stravaPRs(){
   const s=state&&state.strava;if(!s||!s.runs) return [];
   const best={};
+  const put=(key,t,date,id,o={})=>{if(!(key in PR_KEYS)||!(t>0))return;const cur=best[key];if(!cur||t<cur.t)best[key]={key,d:PR_KEYS[key],t,date,id,src:'strava',race:!!o.race,approx:!!o.approx};};
   s.runs.forEach(r=>{
-    (r.be||[]).forEach(b=>{if(!(b.n in PR_KEYS)||!(b.t>0))return;const cur=best[b.n];if(!cur||b.t<cur.t)best[b.n]={key:b.n,d:PR_KEYS[b.n],t:b.t,date:r.date,id:r.id,src:'strava'};});
-    if(r.race&&r.km>=4.9){
-      const key=Object.keys(PR_KEYS).find(k=>PR_KEYS[k]>=5&&Math.abs(r.km-PR_KEYS[k])/PR_KEYS[k]<0.03);
-      if(key){const cur=best[key];if(!cur||r.sec<cur.t)best[key]={key,d:PR_KEYS[key],t:r.sec,date:r.date,id:r.id,src:'strava',race:true};}
-    }
+    (r.be||[]).forEach(b=>put(b.n,b.t,r.date,r.id));
+    const sm=summaryMark(r);if(sm)put(sm.key,sm.t,r.date,r.id,{race:sm.race,approx:!sm.race});
   });
+  Object.entries(s.prArchive||{}).forEach(([k,m])=>put(k,m.t,m.date,m.id,m));
   return Object.values(best).sort((a,b)=>a.d-b.d);
 }
 

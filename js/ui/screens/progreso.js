@@ -13,6 +13,7 @@ import { marksCard, summaryCard } from '../cards.js';
 import { shoesCard } from '../shoes.js';
 import { barChart, formChart, lineChart } from '../charts.js';
 import { MAN_TYPES } from './manual.js';
+import { cycleInsightCard } from '../cycle.js';
 
 export function racePrediction(){
   const pr=state.profile,g=GOALS[pr.goal];
@@ -84,6 +85,7 @@ export function renderProgreso(){
    <section class="card stack"><h3>Kilómetros por semana</h3>${barChart()}</section>
    <section class="card stack"><h3>Forma y fatiga</h3>${formChart()}</section>
    <section class="card stack"><h3>Tu 5 km estimado</h3>${lineChart()}</section>
+   ${cycleInsightCard()}
    ${shoesCard()}
    <section class="card stack" style="gap:4px"><h3>Cómo se ha adaptado tu plan</h3>${evs||'<p class="muted small">Aún no hay ajustes.</p>'}</section>
    <section class="card stack" style="gap:0"><div class="row between" style="margin-bottom:6px"><h3>Historial · ${fk(totalKm)} km</h3><button type="button" class="ghost addbtn" data-act="addrun">+ Añadir</button></div>${hist||'<p class="muted small">Todavía no hay carreras.</p>'}${stravaOn()?'<p class="src" style="margin-top:8px">Datos de actividad: Strava</p>':''}</section>

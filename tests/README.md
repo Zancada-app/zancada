@@ -5,6 +5,8 @@ Sin dependencias para las pruebas de lógica (solo Node ≥ 18):
 ```sh
 node tests/engine.test.cjs   # 60 corredores simulados durante 160 días
 node tests/shoes.test.cjs    # zapatillas: km, avisos, Strava
+node tests/cycle.test.cjs    # ciclo: fases, previsión, sesiones movidas, aprendizaje
+node tests/strava-marks.test.cjs  # mejores marcas desde todo el historial de Strava
 node tests/check-sw.cjs      # el service worker incluye todos los archivos
 node tests/check-layers.cjs  # model/ no depende de la pantalla ni de la red
 ```

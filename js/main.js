@@ -9,6 +9,7 @@ import { doSync, renderCodeScreen } from './ui/screens/perfil.js';
 import { toast } from './ui/toast.js';
 import { closeSheet, route } from './ui/router.js';
 import { bindEvents } from './ui/events.js';
+import { cycleSchedule } from './model/cycle.js';
 
 onSaveError(toast);
 bindEvents();
@@ -21,7 +22,7 @@ let shownDay=null;
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible'||!state) return;
   if(stravaOn()&&Date.now()-sv().lastSync>20*60000){doSync(false);shownDay=today();return;}
-  if(shownDay&&shownDay!==today()&&state.profile&&state.plan){if(processMissed())save();route();}
+  if(shownDay&&shownDay!==today()&&state.profile&&state.plan){if(processMissed()|cycleSchedule())save();route();}
   shownDay=today();
 });
 
@@ -40,7 +41,7 @@ function boot(){
     else{route();stravaExchange(qp.get('code'),qp.get('scope')).then(()=>{toast('Strava conectado. Importando carreras…');return doSync(false);}).catch(e=>{toast(e.message);route();});return;}
   }
   if(stravaOn()&&Date.now()-sv().lastSync>20*60000){route();doSync(false);return;}
-  if(state.profile&&state.plan){if(processMissed())save();}
+  if(state.profile&&state.plan){if(processMissed()|cycleSchedule())save();}
   route();
 }
 

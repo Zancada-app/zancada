@@ -3,7 +3,8 @@
  */
 import { today } from '../core/util.js';
 import { state } from '../core/store.js';
-import { CHK, MOD_N, readiness } from '../model/readiness.js';
+import { MOD_N, chkRows, readiness } from '../model/readiness.js';
+import { cycle, cycleOn } from '../model/cycle.js';
 import { openSheet } from './router.js';
 
 export const VERD={go:['Adelante','ok','Estás en condiciones de hacer la sesión tal cual.'],soft:['Suavízala','w','Haz la sesión, pero algo más corta y sin apurar los ritmos.'],easy:['Mejor suave','w','Hoy cambia la sesión por un rodaje suave y corto.'],rest:['Descansa','q','Con dolor no se corre. Descansa y, si sigue mañana, pausa el plan por lesión.']};
@@ -13,8 +14,8 @@ export function checkinCard(){
   const c=(state.checkins||{})[td],ses=state.sessions.find(s=>s.date===td&&s.status==='pending');
   if(!c){
     if(!ses) return '';
-    return `<section class="card stack" id="chk"><div class="row between"><h3>¿Cómo estás hoy?</h3><span class="small muted">4 toques</span></div>
-      ${CHK.map(([k,l,o])=>`<div class="chkrow"><span class="small">${l}</span><div class="seg small-seg">${o.map(([v,t])=>`<button type="button" data-act="chk" data-k="${k}" data-v="${v}" aria-pressed="false">${t}</button>`).join('')}</div></div>`).join('')}</section>`;
+    return `<section class="card stack" id="chk"><div class="row between"><h3>¿Cómo estás hoy?</h3><span class="small muted">${chkRows(td).length} toques</span></div>
+      ${chkRows(td).map(([k,l,o])=>`<div class="chkrow"><span class="small">${l}</span><div class="seg small-seg">${o.map(([v,t])=>`<button type="button" data-act="chk" data-k="${k}" data-v="${v}" aria-pressed="false">${t}</button>`).join('')}</div></div>`).join('')}</section>`;
   }
   const r=readiness(td);if(!r||!ses) return '';
   const vd=VERD[r.v],applied=ses.mod;
@@ -32,6 +33,7 @@ export function openNot100(id){
       <button type="button" class="ocard" data-act="n100" data-id="${s.id}" data-v="tired"><b>Estoy cansado</b><span>Hago la sesión más corta y suave</span></button>
       <button type="button" class="ocard" data-act="n100" data-id="${s.id}" data-v="time"><b>Voy justo de tiempo</b><span>Acorto la sesión a 30 minutos</span></button>
       <button type="button" class="ocard" data-act="n100" data-id="${s.id}" data-v="ache"><b>Tengo una molestia</b><span>Rodaje muy suave y corto, o descanso</span></button>
+      ${cycleOn()?`<button type="button" class="ocard" data-act="n100" data-id="${s.id}" data-v="period"><b>${cycle().mode==='otro'?'Tengo síntomas hormonales':'Tengo la regla y no estoy bien'}</b><span>Rodaje suave y corto${cycle().mode==='otro'?'':', y la apunto si acaba de empezar'}</span></button>`:''}
       <button type="button" class="ocard" data-act="n100" data-id="${s.id}" data-v="sick"><b>Estoy enfermo</b><span>Descanso hoy y pauso el plan</span></button>
     </div><button class="ghost" data-act="close">Volver</button></div>`);
 }

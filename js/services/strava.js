@@ -9,6 +9,7 @@ import { afterSync } from '../model/activities.js';
 import { toast } from '../ui/toast.js';
 import { setBusy } from '../ui/actions.js';
 import { autoAssignShoes, syncStravaShoes } from '../model/shoes.js';
+import { archiveMark, markP, summaryMark } from '../model/marks.js';
 
 /* =========================================================
    Strava
@@ -64,7 +65,7 @@ export async function accessToken(force){
 
 export async function api(path){
   const call=async tok=>{
-    try{return await fetch(base()+STRAVA_API+path,{headers:{Authorization:'Bearer '+tok}});}
+    try{return await fetch(base()+STRAVA_API+path,{headers:{Authorization:'Bearer '+tok},signal:AbortSignal.timeout?AbortSignal.timeout(25000):undefined});}
     catch(e){throw new Error('Sin conexión con Strava. Comprueba internet o el proxy.');}
   };
   let r=await call(await accessToken());
@@ -96,6 +97,40 @@ export function addDetail(r,a){
 
 export let syncing=false;
 
+// Strava permite unas 100 consultas cada 15 minutos: cada sincronización usa como mucho ~70.
+const DETAIL_BUDGET=40,HIST_BUDGET=25,HIST_PER_BUCKET=12;
+// orden para buscar marcas: competiciones primero y luego por ritmo equivalente en 5 km
+const markRank=r=>(r.race?0:1e4)+markP(r.sec,Math.max(r.km,1));
+const bucketOf=km=>km<5?0:km<10?1:km<21.0975?2:km<42.195?3:4;
+
+/** Recorre las actividades de más de un año y guarda solo sus mejores marcas (no las carreras). */
+async function scanHistory(s,budget){
+  const h=s.hist||(s.hist={before:Math.floor((s.firstSync||Date.now())/1000-365*86400),listed:false,cand:[],scanned:0});
+  if(h.listed&&!h.cand.length) return;
+  try{
+    for(let page=0;page<2&&!h.listed;page++){
+      const arr=await api(`/athlete/activities?before=${h.before}&per_page=200`);
+      for(const a of arr){
+        if(!RUN_TYPES.includes(a.sport_type||a.type)||!(a.distance>300)||s.runs.some(r=>r.id===a.id))continue;
+        const r=toRun(a);h.scanned++;
+        const sm=summaryMark(r);if(sm)archiveMark(s,sm.key,sm.t,r.date,r.id,{race:sm.race,approx:!sm.race});
+        if(r.km>=0.95)h.cand.push({id:r.id,date:r.date,km:r.km,sec:r.sec,race:r.race});
+      }
+      if(arr.length)h.before=Math.min(...arr.map(a=>Math.floor(Date.parse(a.start_date)/1000)))-1;
+      if(arr.length<200)h.listed=true;
+      // solo las candidatas: las competiciones y las más rápidas de cada tramo de distancia
+      const keep=[],count=[0,0,0,0,0];
+      h.cand.sort((a,b)=>markRank(a)-markRank(b)).forEach(c=>{const k=bucketOf(c.km);if(c.race||count[k]++<HIST_PER_BUCKET)keep.push(c);});
+      h.cand=keep;
+    }
+    while(budget-->0&&h.cand.length){
+      const c=h.cand[0],a=await api(`/activities/${c.id}`);
+      h.cand.shift();
+      (a.best_efforts||[]).forEach(b=>archiveMark(s,b.name,b.moving_time||b.elapsed_time,c.date,c.id));
+    }
+  }catch(e){/* se reintenta en la próxima sincronización */}
+}
+
 export async function stravaSync(){
   const s=sv();
   if(!s.tokens||syncing) return null;
@@ -116,14 +151,19 @@ export async function stravaSync(){
       else{s.runs.push(toRun(a));added++;}
     });
     s.runs.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
-    // detalle: las 30 más recientes y las más rápidas (candidatas a mejor marca)
-    const recent=s.runs.filter(r=>!r.detail).slice(-30);
-    const fastest=s.runs.filter(r=>!r.detail&&r.km>=4.8&&!recent.includes(r)).sort((a,b)=>a.sec/a.km-b.sec/b.km).slice(0,15);
-    const need=recent.reverse().concat(fastest);
-    for(const r of need){
+    // detalle (mejores esfuerzos, vueltas, parciales): primero lo reciente, luego competiciones y
+    // las más rápidas. Lo que no quepa se completa en las siguientes sincronizaciones.
+    const pend=s.runs.filter(r=>!r.detail);
+    const recent=pend.slice(-20).reverse();
+    const rest=pend.filter(r=>!recent.includes(r)).sort((a,b)=>markRank(a)-markRank(b));
+    let budget=DETAIL_BUDGET,limited=false;
+    for(const r of recent.concat(rest)){
+      if(budget<=0)break;budget--;
       try{addDetail(r,await api(`/activities/${r.id}`));}
-      catch(e){if(/limita/.test(e.message))break;}
+      catch(e){if(/limita/.test(e.message)){limited=true;break;}}
     }
+    // marcas de más de un año: se buscan en el historial antiguo poco a poco
+    if(!limited) await scanHistory(s,Math.min(HIST_BUDGET,budget+10));
     // zapatillas: Strava lleva el kilometraje total de cada par
     s.gear=s.gear||{};
     const ids=[...new Set(s.runs.filter(r=>r.gear&&r.date>=addDays(today(),-365)).map(r=>r.gear))].slice(0,8);
@@ -134,7 +174,7 @@ export async function stravaSync(){
     }
     const mx=robustMax(s.runs.map(r=>r.hrMax||0));
     if(mx) s.hrMax=mx;
-    s.lastSync=Date.now();
+    s.lastSync=Date.now();if(!s.firstSync)s.firstSync=s.lastSync;
     const res=afterSync();
     save();
     return Object.assign({added},res);

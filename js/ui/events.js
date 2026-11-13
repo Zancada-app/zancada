@@ -5,7 +5,7 @@ import { addDays, daysBetween, esc, fdLong, monday, today } from '../core/util.j
 import { GOALS } from '../model/constants.js';
 import { blankState, save, setState, state, sv } from '../core/store.js';
 import { ageNote } from '../model/plan.js';
-import { CHK, applyMod, doNot100 } from '../model/readiness.js';
+import { applyMod, chkRows, doNot100 } from '../model/readiness.js';
 import { createPlan, rateSession, skip } from '../model/adapt.js';
 import { activities } from '../model/activities.js';
 import { moveSession, resumePlan, startPause } from '../model/calendar.js';
@@ -25,12 +25,13 @@ import { toast, undoLast } from './toast.js';
 import { closeSheet, lastTab, route, setLastTab } from './router.js';
 import { askSkip, confirmReset, openLog, submitLog } from './actions.js';
 import { applyShoeSet, openShoe, pickShoeKind, saveShoe, shoeAction, touchShoeLimit } from './shoes.js';
+import { cycleAction } from './cycle.js';
 
 /* ---------- Eventos ---------- */
 export let lastAct={a:null,t:0},geoResults=[];
 
 // solo se protegen del doble toque las acciones que confirman o cambian de pantalla; las de elegir opciones van sin freno
-export const GUARDED=new Set(['shoesave','shoeretire','shoeunretire','shoedel','shoeswap','shoeack','shoeopen','wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
+export const GUARDED=new Set(['cycsave','cycstart','cycend','cycok','cycdel','cycadd','cycoff2','shoesave','shoeretire','shoeunretire','shoedel','shoeswap','shoeack','shoeopen','wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
 
 /** Registra los manejadores globales (delegación de eventos). Se llama una vez desde main.js. */
 export function bindEvents(){
@@ -83,13 +84,13 @@ export function bindEvents(){
       case 'pclear': clearPicker(t);break;
       case 'chk':{const td=today();state.checkins=state.checkins||{};const c=state.checkins[td+'_draft']||{};c[t.dataset.k]=+t.dataset.v;
         t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===t)));
-        if(CHK.every(([k])=>c[k])){state.checkins[td]=c;delete state.checkins[td+'_draft'];
+        if(chkRows(td).every(([k])=>c[k])){state.checkins[td]=c;delete state.checkins[td+'_draft'];
           Object.keys(state.checkins).forEach(k=>{if(k.slice(0,10)<addDays(td,-60))delete state.checkins[k];});save();route();}
         else state.checkins[td+'_draft']=c;break;}
       case 'chkredo':{const td=today();delete state.checkins[td];save();route();break;}
       case 'applymod':{const s=state.sessions.find(x=>x.id===id);const snap=JSON.stringify(state);const v=t.dataset.v;applyMod(s,v,'tu estado de hoy');if(v==='rest'&&s){}save();route();toast(v==='rest'?'Hoy descansas.':'Sesión ajustada.',{undo:snap});break;}
       case 'n100open': openNot100(id);break;
-      case 'n100':{const s=state.sessions.find(x=>x.id===id);const snap=JSON.stringify(state);doNot100(s,t.dataset.v);save();closeSheet();route();toast(t.dataset.v==='sick'?'Descanso y plan en pausa. Recupérate bien.':'Sesión ajustada.',{undo:snap});break;}
+      case 'n100':{const s=state.sessions.find(x=>x.id===id);const snap=JSON.stringify(state);doNot100(s,t.dataset.v);save();closeSheet();route();toast(t.dataset.v==='sick'?'Descanso y plan en pausa. Recupérate bien.':t.dataset.v==='period'?'Hoy toca suave. Cuídate.':'Sesión ajustada.',{undo:snap});break;}
       case 'stropen': openStrength(t.dataset.d,t.dataset.k);break;
       case 'strdone':{state.strengthDone=state.strengthDone||{};const d=t.dataset.d;if(state.strengthDone[d])delete state.strengthDone[d];else state.strengthDone[d]=true;save();closeSheet();route();toast(state.strengthDone[d]?'Fuerza hecha. ¡Bien!':'Desmarcada.');break;}
       case 'geosearch':{readDraftInputs();const q=($('#f-cityq').value||'').trim();if(q.length<2){$('#err').textContent='Escribe al menos 2 letras.';break;}
@@ -103,6 +104,8 @@ export function bindEvents(){
       case 'addrpe': addDraft.rpe=+t.dataset.v;t.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-checked',String(b===t)));$('#aerr').textContent='';break;
       case 'addsave': saveAddRun();break;
       case 'manopen': openManual(id);break;
+      // ciclo
+      case 'cycopen': case 'cycmode': case 'cycadapt': case 'cycsave': case 'cycstart': case 'cycend': case 'cycok': case 'cycdel': case 'cycadd': case 'cycoff': case 'cycoff2': cycleAction(a,t);break;
       // zapatillas
       case 'shoeopen': openShoe(id||null);break;
       case 'shoesave': saveShoe();break;

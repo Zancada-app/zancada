@@ -13,17 +13,26 @@ import { PAUSE_R, inactive } from '../model/calendar.js';
 import { PHASE_TIP, weekSummary } from '../model/weekly.js';
 import { openSheet } from './router.js';
 
+function histNote(){
+  const st=state.strava,h=st&&st.tokens&&st.hist;
+  if(!st||!st.tokens) return '';
+  if(!h) return '<p class="small muted" style="margin-top:8px">Al sincronizar con Strava se buscan tus mejores marcas en todo tu historial.</p>';
+  if(h.listed&&!h.cand.length) return '';
+  return `<p class="small muted" style="margin-top:8px">Buscando marcas más antiguas en tu historial de Strava (${h.scanned} carreras revisadas). Strava limita las consultas, así que se completa en las próximas sincronizaciones.</p>`;
+}
+
 export function marksCard(){
   const pr=state.profile,man=(pr.marks||[]),sp=stravaPRs(),b=bestMark(pr);
   const rows=[];
   MARK_D.forEach(([d,n])=>{
     const m=man.find(x=>Math.abs(x.d-d)<0.01),s=sp.find(x=>Math.abs(x.d-d)<0.01);
     const pick=[m&&{...m,src:'manual'},s].filter(Boolean).sort((a,b)=>a.t-b.t)[0];
-    if(pick) rows.push(`<div class="zrow"><div><b>${n}</b><br><span class="small muted">${pick.src==='strava'?(pick.race?'Competición en Strava':'Mejor esfuerzo en Strava'):'Introducida por ti'}${pick.date?' · '+fdMark(pick.date):''}</span></div><span class="num zv">${ft(pick.t)}</span></div>`);
+    if(pick) rows.push(`<div class="zrow"><div><b>${n}</b><br><span class="small muted">${pick.src==='strava'?(pick.race?'Competición en Strava':pick.approx?'Carrera completa en Strava':'Mejor esfuerzo en Strava'):'Introducida por ti'}${pick.date?' · '+fdMark(pick.date):''}</span></div><span class="num zv">${ft(pick.t)}</span></div>`);
   });
   sp.filter(x=>x.d<5).sort((a,b)=>b.d-a.d).forEach(x=>rows.unshift(`<div class="zrow"><div><b>${PR_NAME[x.key]}</b><br><span class="small muted">Mejor esfuerzo en Strava · ${fdMark(x.date)}</span></div><span class="num zv">${ft(x.t)}</span></div>`));
   return `<section class="card stack" style="gap:0"><div class="row between" style="margin-bottom:6px"><h3>Tus mejores marcas</h3><button type="button" class="ghost" style="min-height:36px;padding:4px 12px;font-size:14px" data-act="wedit" data-step="marks">Editar</button></div>
     ${rows.join('')||'<p class="small muted">Aún no hay marcas. Añádelas en Perfil o conecta Strava.</p>'}
+    ${histNote()}
     ${b?`<p class="small muted" style="margin-top:8px">La marca que más pesa ahora es la de ${markName(b.d).toLowerCase()}${b.date?` (${fdMark(b.date)})`:''}. Las antiguas cuentan menos, y las de 1 km o 1 milla no se usan para calcular tu forma porque la sobrestiman. Tu forma estimada hoy: ${ft(state.fitness.p*5)} en 5 km.</p>`:''}</section>`;
 }
 

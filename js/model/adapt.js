@@ -11,6 +11,7 @@ import { gapFromElev } from './elevation.js';
 import { goalCheck, goalEval } from './goal.js';
 import { activities, hrMaxNow } from './activities.js';
 import { applyEasyUntil, resumePlan } from './calendar.js';
+import { cycleSchedule } from './cycle.js';
 
 /* =========================================================
    Motor de adaptación
@@ -75,6 +76,7 @@ export function regenerate(){
   applyEasyUntil(state.sessions);
   refreshKm();
   sortSessions();
+  cycleSchedule();
 }
 
 export function setLoad(f){const ad=state.adapt,before=ad.load;ad.load=clamp(ad.load*f,0.6,1.25);return Math.round((ad.load/before-1)*100);}
@@ -189,7 +191,7 @@ export function skip(s,auto){
     const target=cands.find(ok);
     const nm=TYPES[s.type].n.toLowerCase();
     if(target){
-      state.sessions.push(Object.assign({},s,{id:uid(),date:target,status:'pending',moved:true,auto:false,log:null,from:s.date}));
+      state.sessions.push(Object.assign({},s,{id:uid(),date:target,status:'pending',moved:true,auto:false,log:null,from:s.date,cyc:undefined}));
       msgs.push(`No hiciste ${nm} del ${DAYS_L[dow(s.date)]}: la paso al ${DAYS_L[dow(target)]} ${pd(target).getDate()}.`);
     }else if(s.type==='long'){
       const e=state.sessions.find(x=>x.status==='pending'&&x.type==='easy'&&x.date>=td&&x.date<=wkEnd&&ok(x.date));

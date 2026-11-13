@@ -10,6 +10,7 @@ import { $, app } from '../dom.js';
 import { draft, draftFromProfile, setDraft, summaryRows, wiz } from './wizard.js';
 import { toast } from '../toast.js';
 import { route } from '../router.js';
+import { cycleSection } from '../cycle.js';
 
 /* ---------- Perfil ---------- */
 export function renderPerfil(){
@@ -17,6 +18,7 @@ export function renderPerfil(){
   app.innerHTML=`<div class="stack-lg"><header class="stack" style="gap:6px"><div class="lanes" aria-hidden="true"></div><h1>Perfil</h1><p class="muted">Toca una fila para cambiarla. Si afecta al plan, te pediré confirmación antes de recalcularlo.</p></header>
     <div class="list card" style="padding:0 14px">${summaryRows('wedit')}</div>
     ${stravaSection()}
+    ${cycleSection()}
     <section class="card stack"><h3>Tus datos</h3><p class="small muted" id="syncnote">${syncText()}</p>
       <div class="grid2"><button type="button" data-act="export">Descargar copia</button><button type="button" data-act="importOpen">Restaurar copia</button></div>
       <p class="hint">La copia incluye la conexión con Strava: no la compartas.</p>
@@ -62,15 +64,23 @@ export function prefillFromStrava(d){
   return d;
 }
 
+// Si queda historial por revisar (Strava limita las consultas), se sigue solo pasado el límite.
+let moreTimer=null;
+function scheduleMore(){
+  const s=state.strava;if(!s||!s.tokens||moreTimer) return;
+  const pending=(s.hist&&!(s.hist.listed&&!s.hist.cand.length))||s.runs.some(r=>!r.detail);
+  if(pending) moreTimer=setTimeout(()=>{moreTimer=null;if(document.visibilityState==='visible')doSync(false);},16*60e3);
+}
+
 export async function doSync(manual){
   let r=null;
-  try{r=await stravaSync();setSyncFailed(false);}
+  try{r=await stravaSync();setSyncFailed(false);scheduleMore();}
   catch(e){setSyncFailed(true);setSyncUI();if(manual||state.profile)toast(e.message);}
   if(!state.profile){
     if(!r) return;
     // solo se rellena el asistente si aún está en el primer paso: nunca se pierde lo que ya se ha escrito
     if(!wiz||wiz.i===0){setDraft(null);if(wiz)wiz.anim=false;route();}
-    toast(r.added?`${r.added} carreras importadas de Strava.`:'Strava conectado, pero no hay carreras en los últimos 4 meses.');return;
+    toast(r.added?`${r.added} carreras importadas de Strava.`:'Strava conectado, pero no hay carreras en el último año.');return;
   }
   if(state.plan&&processMissed()) save();
   if(r){save();route();
