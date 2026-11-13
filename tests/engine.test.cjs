@@ -25,6 +25,9 @@ function check(tag){
   const byDay={};S.sessions.filter(s=>s.status==='pending').forEach(s=>{byDay[s.date]=(byDay[s.date]||0)+1;});
   for(const k in byDay) if(byDay[k]>1) problems.push(`${tag}: ${byDay[k]} sesiones pendientes el ${k}`);
   if(!(S.fitness.p>150&&S.fitness.p<720)) problems.push(`${tag}: p=${S.fitness.p}`);
+  if(S.plan&&S.plan.longs){const peak=Math.max(...S.plan.longs.filter(x=>x!=null));if(!(peak>0&&peak<=33))problems.push(`${tag}: tirada máxima ${peak}`);}
+  const sh=E.shoes();sh.forEach(x=>{const k=E.shoeKm(x);if(!(k>=0&&isFinite(k)))problems.push(`${tag}: km zapatilla ${k}`);});
+  const ls=E.loadSeries();if(ls.some(x=>!isFinite(x.ctl)||!isFinite(x.atl)))problems.push(`${tag}: carga no finita`);
   if(!(S.adapt.load>=0.6&&S.adapt.load<=1.25)) problems.push(`${tag}: load ${S.adapt.load}`);
   for(const f of ['renderHoy','renderPlan','renderProgreso','renderZonas','renderPerfil']){
     E[f]();const h=E.app.innerHTML;
@@ -42,10 +45,15 @@ for(let run=0;run<60;run++){
     raceDate:E.GOALS[goal].dist&&R()<0.5?E.addDays('2026-11-11',30+Math.floor(R()*120)):null,refDist:null,refTime:null,
     targetTime:E.GOALS[goal].dist&&R()<0.6?Math.round(E.GOALS[goal].dist*(240+R()*240)):null,hrMax:R()<0.5?185:null,age:R()<0.3?Math.floor(15+R()*60):null,
     marks:R()<0.6?[{d:5,t:Math.round(5*(230+R()*200)),date:E.addDays('2026-11-11',-Math.floor(R()*700))},{d:10,t:Math.round(10*(240+R()*200)),date:E.addDays('2026-11-11',-Math.floor(R()*400))}]:[],
-    raceElev:pick([0,2,8,15,30]),maxMin:pick([null,30,45,60,90]),hills:R()<0.7};
+    raceElev:pick([0,2,8,15,30]),maxMin:pick([null,30,45,60,90]),hills:R()<0.7,first:R()<0.4,strength:R()<0.8};
   const tag=`#${run} ${goal}/${level}/${days.join('')}`;
   try{
+    // funciones opcionales: ciclo, zapatillas
+    const useCycle=R()<0.4,useShoes=R()<0.5;
+    if(useCycle){E.setupCycle({mode:pick(['natural','natural','pildora','otro']),last:E.addDays('2026-11-11',-Math.floor(R()*28)),len:24+Math.floor(R()*10),plen:4+Math.floor(R()*3),adapt:R()<0.8});}
+    if(useShoes){E.addShoe({name:'A',startKm:Math.floor(R()*600)});if(R()<0.5)E.addShoe({name:'B',kind:'ligeras'});}
     E.createPlan(pr,false);check(tag+' inicio');
+    if(pr.goal!=='forma'&&!E.state.sessions.some(x=>x.type==='race')) problems.push(tag+': sin sesión de carrera');
     // wizard/preview render
     E.setDraft(E.draftFromProfile(E.state.profile));E.setWiz({i:6,mode:'new',dir:1});E.renderWizard();
     let d='2026-11-11';
@@ -68,6 +76,19 @@ for(let run=0;run<60;run++){
       if(k%7===0){E.strengthDays(E.addDays(d,-((new Date(d).getDay()+6)%7)));E.weekLoadInfo();E.intensityDist();E.predictToday(E.state.fitness.p,42.195);}
       if(R()<0.05){E.state.manual=E.state.manual||[];E.state.manual.push({id:'m'+k,date:d,type:'easy',km:5+R()*5,time:1800+R()*900,rpe:4,elev:Math.floor(R()*200),hr:null,gap:null});}
       const done=E.state.sessions.find(x=>x.status==='done'&&x.log&&!x.log.rpeSrc);if(done&&R()<0.05)E.rateSession(done,6);
+      if(R()<0.15){const t=pick(Object.keys(E.XT));E.addXt({type:t,date:d,min:15+Math.floor(R()*120),rpe:pick([2,4,6,8,10]),focus:R()<0.3?pick(Object.keys(E.XT_FOCUS)):null,name:t==='otro'?'X':null});}
+      if(useCycle&&E.state.cycle&&E.state.cycle.on){
+        const ph=E.phaseOf(d);
+        if((!ph||ph.day>=E.cycleLen()-1)&&R()<0.4){if(E.addPeriodStart(d))E.regenerate();}
+        if(E.askSymptoms(d)&&E.state.checkins&&E.state.checkins[d])E.state.checkins[d].cyc=1+Math.floor(R()*3);
+        if(R()<0.02){const ts=E.state.sessions.find(x=>x.date===d&&x.status==='pending');if(ts)E.doNot100(ts,'period');}
+        E.cycleSchedule();E.cycleInsights();
+        // ninguna sesión movida por el ciclo cae antes de hoy ni fuera de su semana
+        E.state.sessions.filter(x=>x.cyc&&!x.cyc.swap&&x.status==='pending').forEach(x=>{if(E.monday(x.date)!==E.monday(x.cyc.from))problems.push(tag+': movida por ciclo a otra semana');});
+      }
+      if(useShoes&&R()<0.05)E.ackShoe(E.activeShoes()[0]||E.shoes()[0]);
+      if(R()<0.01&&E.activeShoes().length>1)E.retireShoe(E.activeShoes()[0]);
+      E.strengthDoneOn(d);E.shoeAlerts();E.finishInfo();
       if(k%7===0) check(tag+' '+d);
       d=E.addDays(d,1);
     }

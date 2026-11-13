@@ -28,8 +28,8 @@ function exportedNames() {
   const names = new Set(), lets = new Set();
   for (const f of order()) {
     const src = fs.readFileSync(f, 'utf8');
-    for (const m of src.matchAll(/^export (?:async )?(function|const|let) ([\s\S]*?)(?:[;({=]|$)/gm)) {
-      if (m[1] === 'function') names.add(m[2].trim().split(/[\s(]/)[0]);
+    for (const m of src.matchAll(/^export (?:async )?(function|const|let|class) ([\s\S]*?)(?:[;({=]|$)/gm)) {
+      if (m[1] === 'function' || m[1] === 'class') names.add(m[2].trim().split(/[\s(]/)[0]);
       else for (const n of m[2].split(',')) { const k = n.trim().split(/[\s=]/)[0]; if (/^[\w$]+$/.test(k)) { names.add(k); if (m[1] === 'let') lets.add(k); } }
     }
   }

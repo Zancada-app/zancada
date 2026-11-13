@@ -5,6 +5,7 @@ Sin dependencias para las pruebas de lógica (solo Node ≥ 18):
 ```sh
 node tests/engine.test.cjs   # 60 corredores simulados durante 160 días
 node tests/shoes.test.cjs    # zapatillas: km, avisos, Strava
+node tests/guide.test.cjs    # entreno guiado: pasos, frases, avisos, GPS
 node tests/xtrain.test.cjs   # otros entrenos (fuerza, pilates, bici…)
 node tests/finish.test.cjs   # terminarla / primera media o maratón
 node tests/cycle.test.cjs    # ciclo: fases, previsión, sesiones movidas, aprendizaje

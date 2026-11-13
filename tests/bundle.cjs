@@ -18,7 +18,7 @@ function bundle() {
   return '"use strict";\n' + order().map(f => {
     const src = fs.readFileSync(f, 'utf8')
       .replace(/^import\s[^;]*;\n/gm, '')
-      .replace(/^export (?=function|const|let|async function)/gm, '');
+      .replace(/^export (?=function|const|let|class|async function)/gm, '');
     return `// ---- ${path.relative(ROOT, f)}\n${src}`;
   }).join('\n');
 }

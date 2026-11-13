@@ -29,7 +29,7 @@ export default {
     const res = await fetch(target, {
       method: request.method,
       headers,
-      body: request.method === 'POST' ? await request.text() : undefined,
+      body: request.method === 'POST' ? await request.arrayBuffer() : undefined,
     });
     const out = new Response(res.body, res);
     Object.entries(cors).forEach(([k, v]) => out.headers.set(k, v));

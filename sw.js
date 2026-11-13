@@ -2,7 +2,7 @@
 // Las peticiones a Strava, al proxy y al tiempo nunca se guardan en caché.
 // Al añadir o quitar archivos de la app, actualiza SHELL y sube la versión de CACHE
 // (tests/check-sw.cjs avisa si falta alguno).
-const CACHE = 'zancada-v16';
+const CACHE = 'zancada-v17';
 const SHELL = [
     './',
     './index.html',
@@ -20,6 +20,7 @@ const SHELL = [
     './js/model/elevation.js',
     './js/model/finish.js',
     './js/model/goal.js',
+    './js/model/guide.js',
     './js/model/heartrate.js',
     './js/model/load.js',
     './js/model/marks.js',
@@ -31,7 +32,9 @@ const SHELL = [
     './js/model/weekly.js',
     './js/model/workouts.js',
     './js/model/xtrain.js',
+    './js/services/gps.js',
     './js/services/strava.js',
+    './js/services/voice.js',
     './js/services/weather.js',
     './js/ui/actions.js',
     './js/ui/blocks.js',
@@ -41,6 +44,7 @@ const SHELL = [
     './js/ui/cycle.js',
     './js/ui/dom.js',
     './js/ui/events.js',
+    './js/ui/guide.js',
     './js/ui/pickers.js',
     './js/ui/router.js',
     './js/ui/screens/hoy.js',

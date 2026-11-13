@@ -257,3 +257,28 @@ textarea{min-height:64px}
 .xtg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .xtg button{display:flex;align-items:center;gap:8px;text-align:left;justify-content:flex-start;min-height:48px;padding:8px 12px;font-weight:600;font-size:14px;line-height:1.2}
 .xtg button span{font-size:20px;flex:0 0 auto}
+
+/* entreno guiado: pantalla completa */
+.guide-btn{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700;min-height:52px}
+body.guiding{overflow:hidden}
+body.guiding #tabs{display:none}
+#guide{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;gap:14px;padding:calc(env(safe-area-inset-top) + 16px) 18px calc(env(safe-area-inset-bottom) + 16px);overflow:auto}
+#guide .g-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+#guide .g-main{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:10px 0}
+#guide .g-label{font-family:var(--display);font-weight:800;font-size:26px;line-height:1.1}
+#guide .g-target{font-size:18px;color:var(--muted);font-variant-numeric:tabular-nums}
+#guide .g-left{font-family:var(--display);font-size:72px;line-height:1;letter-spacing:-.02em;margin-top:6px}
+#guide .g-bar{width:100%;height:10px;margin-top:6px}
+#guide .g-pace{display:flex;flex-direction:column;align-items:center;margin-top:8px}
+#guide .g-pace b{font-family:var(--display);font-size:34px}
+#guide .g-pace b.fast{color:var(--warn)} #guide .g-pace b.slow{color:var(--accent)} #guide .g-pace b.ok{color:var(--good)}
+#guide .g-tot{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#guide .g-tot>div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column}
+#guide .g-tot b{font-family:var(--display);font-size:24px}
+#guide .g-next{text-align:center;margin:0}
+#guide .g-gps{text-align:center;margin:0;color:var(--muted)}
+#guide .g-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto}
+#guide .g-btns button{min-height:56px;font-size:17px}
+#glock{position:fixed;inset:0;z-index:300;background:#000;display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(env(safe-area-inset-bottom) + 40px);touch-action:none;user-select:none;-webkit-user-select:none}
+#glock p{color:#555;font-size:15px;transition:color .2s}
+#glock.hold p{color:#ccc}

@@ -11,6 +11,7 @@ import { draft, draftFromProfile, setDraft, summaryRows, wiz } from './wizard.js
 import { toast } from '../toast.js';
 import { route } from '../router.js';
 import { cycleSection } from '../cycle.js';
+import { guideSection } from '../guide.js';
 
 /* ---------- Perfil ---------- */
 export function renderPerfil(){
@@ -18,6 +19,7 @@ export function renderPerfil(){
   app.innerHTML=`<div class="stack-lg"><header class="stack" style="gap:6px"><div class="lanes" aria-hidden="true"></div><h1>Perfil</h1><p class="muted">Toca una fila para cambiarla. Si afecta al plan, te pediré confirmación antes de recalcularlo.</p></header>
     <div class="list card" style="padding:0 14px">${summaryRows('wedit')}</div>
     ${stravaSection()}
+    ${guideSection()}
     ${cycleSection()}
     <section class="card stack"><h3>Tus datos</h3><p class="small muted" id="syncnote">${syncText()}</p>
       <div class="grid2"><button type="button" data-act="export">Descargar copia</button><button type="button" data-act="importOpen">Restaurar copia</button></div>

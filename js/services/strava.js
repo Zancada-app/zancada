@@ -29,7 +29,7 @@ export const base=()=>(sv().proxy||STRAVA_WEB).replace(/\/+$/,'');
 export function stravaConnect(){
   const s=sv();
   if(!s.clientId||!s.clientSecret){toast('Primero escribe el Client ID y el Client Secret de tu app de Strava.');return;}
-  const q=new URLSearchParams({client_id:s.clientId,redirect_uri:redirectUri(),response_type:'code',approval_prompt:'auto',scope:'read,activity:read_all,profile:read_all',state:'zancada'});
+  const q=new URLSearchParams({client_id:s.clientId,redirect_uri:redirectUri(),response_type:'code',approval_prompt:'auto',scope:'read,activity:read_all,profile:read_all'+(s.wantWrite?',activity:write':''),state:'zancada'});
   save();
   location.href=STRAVA_WEB+'/oauth/authorize?'+q.toString();
 }
@@ -50,6 +50,7 @@ export async function stravaExchange(code,scope){
   const j=await tokenRequest({code,grant_type:'authorization_code'});
   const s=sv();
   s.tokens={access:j.access_token,refresh:j.refresh_token,expiresAt:j.expires_at};
+  s.scope=scope||s.scope||'';
   s.athlete=j.athlete?{id:j.athlete.id,name:j.athlete.firstname||''}:null;
   save();
 }
@@ -75,6 +76,23 @@ export async function api(path){
   if(r.status===429) throw new Error('Strava limita las consultas: vuelve a sincronizar dentro de 15 minutos.');
   if(r.status===401){sv().tokens=null;save();throw new Error('Strava ha retirado el permiso. Vuelve a conectar desde Perfil.');}
   if(!r.ok) throw new Error('Strava respondió con el error '+r.status+'.');
+  return r.json();
+}
+
+/** ¿Se pueden subir actividades? (hace falta el permiso de escritura de Strava) */
+export const canUpload=()=>{const s=sv();return !!(s.tokens&&s.scope&&/activity:write/.test(s.scope));};
+
+/** Sube un recorrido GPX como carrera. */
+export async function uploadGpx(gpx,name){
+  const tok=await accessToken();
+  const fd=new FormData();
+  fd.append('file',new Blob([gpx],{type:'application/gpx+xml'}),'zancada.gpx');
+  fd.append('data_type','gpx');fd.append('name',name);fd.append('sport_type','Run');fd.append('external_id','zancada-'+Date.now());
+  let r;
+  try{r=await fetch(base()+STRAVA_API+'/uploads',{method:'POST',headers:{Authorization:'Bearer '+tok},body:fd});}
+  catch(e){throw new Error('Sin conexión con Strava: la carrera queda guardada en Zancada.');}
+  if(r.status===401||r.status===403) throw new Error('Falta el permiso para subir a Strava. Actívalo en Perfil › Entrenos guiados.');
+  if(!r.ok) throw new Error('Strava no ha aceptado la subida (error '+r.status+').');
   return r.json();
 }
 

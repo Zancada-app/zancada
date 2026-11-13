@@ -24,6 +24,7 @@ import { shoeAlertCard, shoeSetHTML } from '../shoes.js';
 import { cycleCard, cycleNoteHTML } from '../cycle.js';
 import { xtIn } from '../../model/xtrain.js';
 import { xtRow, xtWeekText } from '../xtrain.js';
+import { guideButton, resumeCard } from '../guide.js';
 
 export function chipFor(s){const t=TYPES[s.type];return `<span class="chip ${t.c}">${t.k}</span>`;}
 
@@ -67,7 +68,8 @@ export function renderHoy(){
       <div class="row wrap" style="gap:6px">${c?`<span class="chip">Semana ${cw+1} de ${plan.curve.length}</span><span class="chip">${PHASE_N[c.phase]}</span>${c.down?'<span class="chip ok">Semana de descarga</span>':''}`:''}${race?`<span class="chip q">${(n=>n===0?`${g.name}: ¡hoy es el día!`:n===1?`${g.name} mañana`:`${g.name} en ${n} días`)(daysBetween(td,race.date))}</span>`:''}</div>
     </header>
     ${stravaBar}
-    <section class="stack" style="gap:8px"><div class="row between"><h3>Esta semana</h3><button type="button" class="ghost addbtn" data-act="addrun" aria-label="Añadir entreno">+ Añadir entreno</button></div><div class="row between" style="margin-top:-4px"><span class="small muted num">${fk(kmDone)} de ${fk(kmPlan)} km</span>${(t=>t?`<span class="small muted">${t}</span>`:'')(xtWeekText(mon))}</div><div class="week">${wkDays}</div></section>
+    ${resumeCard()}
+    <section class="stack" style="gap:8px"><div class="row between"><h3>Esta semana</h3><button type="button" class="ghost addbtn" data-act="addrun" aria-label="Añadir entreno">+ Añadir entreno</button></div><div class="row between" style="margin-top:-4px"><span class="small muted num">${fk(kmDone)} de ${fk(kmPlan)} km</span></div>${(t=>t?`<span class="small muted" style="margin-top:-6px">${t}</span>`:'')(xtWeekText(mon))}<div class="week">${wkDays}</div></section>
     ${feelCard}
     ${checkinCard()}
     ${cycleCard()}
@@ -105,6 +107,7 @@ export function sessionCard(s,isToday){
   }
   return `<section class="hero stack">${head}${body}
     ${showLog&&stravaOn()?'<p class="small muted">Si la grabas con el reloj, se registrará sola al sincronizar con Strava.</p>':''}
+    ${guideButton(s)}
     ${showLog?`<div class="grid2"><button class="ghost" data-act="skip" data-id="${s.id}">No he podido</button><button class="primary" data-act="log" data-id="${s.id}">Registrar</button></div>`:''}
     ${st==='pending'&&s.type!=='race'&&!s.mod&&!state.pause?`<button type="button" class="linkb small" style="align-self:flex-start" data-act="n100open" data-id="${s.id}">No estoy al 100 %</button>`:''}
   </section>`;
