@@ -12,6 +12,7 @@ node tests/cycle.test.cjs    # ciclo: fases, previsión, sesiones movidas, apren
 node tests/strava-marks.test.cjs  # mejores marcas desde todo el historial de Strava
 node tests/check-sw.cjs      # el service worker incluye todos los archivos
 node tests/check-layers.cjs  # model/ no depende de la pantalla ni de la red
+node --expose-internals tests/check-imports.cjs  # ningún módulo usa algo sin importarlo
 ```
 
 En navegador real (opcional, necesita Playwright):

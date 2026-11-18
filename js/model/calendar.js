@@ -11,8 +11,49 @@ import { addEvent, regenerate, setFitness, setLoad, sortSessions } from './adapt
    ========================================================= */
 export const inactive=s=>s.status==='skipped'||s.status==='paused'||s.status==='rested';
 
+/** Copia que el plan ya creó al saltar una sesión clave (si existe, se mueve esa en vez de la original). */
+export const missedCopy=s=>state.sessions.find(y=>y.moved&&y.from===s.date&&y.type===s.type&&y.status==='pending')||null;
+
+/** ¿Se puede recuperar esta semana una sesión perdida? */
+export function canRecover(s){
+  const td=today();
+  if(s.status!=='skipped'||s.type==='race'||monday(s.date)!==monday(td)||s.replaced||missedCopy(s)) return false;
+  if(s.type==='long'&&state.sessions.some(x=>x.converted&&x.status!=='skipped'&&monday(x.date)===monday(s.date))) return false;
+  return recoverOptions(s).some(o=>!o.blocked);
+}
+
+/** Días para recuperar una sesión perdida: libres, o con un rodaje (que se sustituye). Nunca encima de otra sesión dura. */
+export function recoverOptions(s){
+  const td=today(),mon=monday(td),out=[];
+  const isKey=x=>KEY_TYPES.includes(x.type)||x.type==='race';
+  for(let d=td;d<=addDays(mon,6);d=addDays(d,1)){
+    const other=state.sessions.find(x=>x.date===d&&x.status==='pending'&&x.id!==s.id);
+    const done=state.sessions.some(x=>x.date===d&&x.status==='done');
+    // solo se sustituye un rodaje por algo más importante: cambiar un rodaje por otro no tiene sentido
+    const replace=!!other&&!isKey(other)&&isKey(s);
+    out.push({d,cur:false,other,replace,blocked:done||(!!other&&!replace)});
+  }
+  return out;
+}
+
+/** Recupera una sesión perdida en otro día de esta semana. */
+export function recoverSession(s,d){
+  const opt=recoverOptions(s).find(o=>o.d===d);if(!opt||opt.blocked) return null;
+  const from=s.date,other=opt.other;
+  if(other){other.status='skipped';other.auto=false;other.replaced=s.id;}
+  s.status='pending';s.auto=false;s.date=d;s.manual=true;s.moved=true;s.recoveredFrom=from;
+  sortSessions();
+  const isKey=x=>KEY_TYPES.includes(x.type)||x.type==='race';
+  const near=state.sessions.filter(x=>x.status==='pending'&&x.id!==s.id&&isKey(x)&&Math.abs(daysBetween(x.date,d))===1);
+  const warn=isKey(s)&&near.length?` Ojo: queda pegada a ${TYPES[near[0].type].n.toLowerCase()} del ${DAYS_L[dow(near[0].date)]}; si puedes, deja un día suave entre las dos.`:'';
+  const nm=TYPES[s.type].n.toLowerCase(),dd=d===today()?'queda para hoy':'pasa al '+DAYS_L[dow(d)];
+  addEvent('info',`Recuperas ${nm} del ${DAYS_L[dow(from)]}: ${dd}${other?`, en lugar de ${TYPES[other.type].n.toLowerCase()}`:''}.`);
+  return `Hecho: ${nm} del ${DAYS_L[dow(from)]} ${dd}${other?`, en lugar de ${TYPES[other.type].n.toLowerCase()}`:''}.${warn}`;
+}
+
 export function moveOptions(s){
   const td=today(),mon=monday(td);
+  if(s.status==='skipped') return canRecover(s)?recoverOptions(s):[];
   if(s.status!=='pending'||s.type==='race'||monday(s.date)!==mon) return [];
   const out=[];
   for(let d=td;d<=addDays(mon,6);d=addDays(d,1)){
@@ -24,6 +65,7 @@ export function moveOptions(s){
 }
 
 export function moveSession(s,d){
+  if(s.status==='skipped') return recoverSession(s,d);
   if(d===s.date) return null;
   const other=state.sessions.find(x=>x.date===d&&x.status==='pending'&&x.id!==s.id);
   const from=s.date;

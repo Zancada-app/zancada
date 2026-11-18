@@ -174,7 +174,7 @@ export function rateSession(s,rpe){
 
 export function adherence(days){
   const td=today(),from=addDays(td,-(days-1));
-  const xs=state.sessions.filter(s=>s.date>=from&&s.date<=td&&(s.status==='done'||s.status==='skipped'));
+  const xs=state.sessions.filter(s=>s.date>=from&&s.date<=td&&(s.status==='done'||s.status==='skipped'&&!s.replaced));
   const done=xs.filter(s=>s.status==='done').length;
   return {done,total:xs.length,ratio:xs.length?done/xs.length:1};
 }

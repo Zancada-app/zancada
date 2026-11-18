@@ -70,6 +70,7 @@ export function bindEvents(){
       case 'wconfirm': wizConfirm();break;
       // sesiones
       case 'open': openSession(id);break;
+      case 'norecover':{const s=state.sessions.find(x=>x.id===id);if(s){const snap=JSON.stringify(state);s.noRecover=true;save();route();toast('De acuerdo, la dejamos pasar.',{undo:snap});}break;}
       case 'log': openLog(id);break;
       case 'logsave': submitLog($('#logf'));break;
       case 'syncclose': closeSheet();doSync(true);break;

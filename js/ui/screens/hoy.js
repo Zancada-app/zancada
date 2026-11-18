@@ -1,15 +1,15 @@
 /**
  * Pantalla «Hoy» y detalle de una sesión.
  */
-import { DAYS, addDays, daysBetween, dow, esc, fdLong, fdShort, fk, fp, ft, monday, pd, today } from '../../core/util.js';
-import { GOALS, PHASE_N, QUALITY, TYPES } from '../../model/constants.js';
+import { DAYS, DAYS_L, addDays, daysBetween, dow, esc, fdLong, fdShort, fk, fp, ft, monday, pd, today } from '../../core/util.js';
+import { GOALS, KEY_TYPES, PHASE_N, QUALITY, TYPES } from '../../model/constants.js';
 import { state, stravaOn } from '../../core/store.js';
 import { describe } from '../../model/workouts.js';
 import { MOD_N } from '../../model/readiness.js';
 import { strengthToday } from '../../model/strength.js';
 import { curWeek } from '../../model/adapt.js';
 import { activities } from '../../model/activities.js';
-import { inactive, moveOptions } from '../../model/calendar.js';
+import { canRecover, inactive, missedCopy, moveOptions } from '../../model/calendar.js';
 import { wxRefresh } from '../../services/weather.js';
 import { syncLine } from '../../services/strava.js';
 import { app, layer } from '../dom.js';
@@ -71,6 +71,7 @@ export function renderHoy(){
     ${resumeCard()}
     <section class="stack" style="gap:8px"><div class="row between"><h3>Esta semana</h3><button type="button" class="ghost addbtn" data-act="addrun" aria-label="Añadir entreno">+ Añadir entreno</button></div><div class="row between" style="margin-top:-4px"><span class="small muted num">${fk(kmDone)} de ${fk(kmPlan)} km</span></div>${(t=>t?`<span class="small muted" style="margin-top:-6px">${t}</span>`:'')(xtWeekText(mon))}<div class="week">${wkDays}</div></section>
     ${feelCard}
+    ${recoverCard()}
     ${checkinCard()}
     ${cycleCard()}
     ${main}
@@ -113,17 +114,30 @@ export function sessionCard(s,isToday){
   </section>`;
 }
 
+/** Sesiones perdidas de esta semana que aún se pueden recuperar. */
+function recoverCard(){
+  const td=today(),l=state.sessions.filter(s=>s.status==='skipped'&&s.date<td&&!s.noRecover&&canRecover(s));
+  if(!l.length) return '';
+  return `<section class="card stack" style="gap:10px"><span class="eyebrow">${l.length===1?'Sesión perdida esta semana':'Sesiones perdidas esta semana'}</span>
+    ${l.map(s=>`<div class="row between" style="gap:8px;align-items:center"><span class="small"><b>${TYPES[s.type].n}</b> del ${DAYS_L[dow(s.date)]} ${pd(s.date).getDate()}</span>
+      <span class="row" style="gap:6px"><button type="button" class="ghost" style="min-height:40px;padding:6px 12px" data-act="norecover" data-id="${s.id}">Dejarla</button><button type="button" class="primary" style="min-height:40px;padding:6px 12px" data-act="open" data-id="${s.id}">Recuperar</button></span></div>`).join('')}
+    <p class="small muted">Elige otro día de lo que queda de semana o déjala pasar.</p></section>`;
+}
+
 export function moveHTML(s){
   const opts=moveOptions(s);if(!opts.length) return '';
   const td=today();
-  return `<section class="card stack" style="gap:8px"><h3>Cambiar de día</h3>
-    <div class="seg" role="group">${opts.map(o=>`<button type="button" data-act="move" data-id="${s.id}" data-d="${o.d}" aria-pressed="${o.cur}" ${o.blocked?'disabled':''}>${o.d===td?'Hoy':DAYS[dow(o.d)]+' '+pd(o.d).getDate()}${o.other&&!o.cur?` · ${TYPES[o.other.type].k.toLowerCase()}`:''}</button>`).join('')}</div>
-    <p class="small muted">Si el día elegido ya tiene sesión, se intercambian. Para cambiar tus días habituales, ve a Perfil.</p></section>`;
+  const rec=s.status==='skipped';
+  return `<section class="card stack" style="gap:8px"><h3>${rec?'Recuperarla esta semana':'Cambiar de día'}</h3>
+    <div class="seg" role="group">${opts.map(o=>`<button type="button" data-act="move" data-id="${s.id}" data-d="${o.d}" aria-pressed="${o.cur}" ${o.blocked?'disabled':''}>${o.d===td?'Hoy':DAYS[dow(o.d)]+' '+pd(o.d).getDate()}${o.other&&!o.cur?` · ${rec&&o.replace?'en vez de ':''}${TYPES[o.other.type].k.toLowerCase()}`:''}</button>`).join('')}</div>
+    <p class="small muted">${rec?(KEY_TYPES.includes(s.type)?'Elige un día libre o uno con rodaje (el rodaje se sustituye por esta sesión). Los días con otra sesión dura no se pueden elegir.':'Elige uno de los días libres que quedan esta semana.'):'Si el día elegido ya tiene sesión, se intercambian. Para cambiar tus días habituales, ve a Perfil.'}</p></section>`;
 }
 
 export function openSession(id){
   const s=state.sessions.find(x=>x.id===id);if(!s)return;
-  openSheet(`<div class="stack">${sessionCard(s,s.date===today())}${s.status==='pending'?moveHTML(s):''}
+  const cp=s.status==='skipped'?missedCopy(s):null;
+  openSheet(`<div class="stack">${sessionCard(s,s.date===today())}${s.status==='pending'||s.status==='skipped'?moveHTML(s):''}
+    ${cp?`<p class="small muted">Ya la pasé al ${DAYS_L[dow(cp.date)]} ${pd(cp.date).getDate()}. Si te viene mejor otro día, ábrela allí y cámbiala.</p>`:''}
     ${s.status==='pending'&&s.date>today()?`<button class="ghost" data-act="skip" data-id="${s.id}">Sé que no podré hacerla</button>`:''}
     ${s.status==='done'?shoeSetHTML(refOfSession(s)):''}
     ${s.status==='done'?`<button class="ghost" data-act="unlog" data-id="${s.id}">${s.log&&s.log.strava?'Desvincular de Strava':'Borrar registro'}</button>`:''}
