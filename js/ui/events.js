@@ -151,7 +151,7 @@ export function bindEvents(){
         stravaExchange(c).then(()=>{toast('Strava conectado. Importando carreras…');return doSync(false);}).catch(e=>toast(e.message));break;}
       case 'copycode':{const c=$('#thecode').textContent;(navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(()=>toast('Código copiado.')).catch(()=>toast('Mantén pulsado el código para copiarlo.'));break;}
       case 'resetAsk': confirmReset();break;
-      case 'resetYes': setState(blankState());setDraft(null);setWiz(null);save();closeSheet(true);location.hash='';setLastTab(null);route();break;
+      case 'resetYes': try{localStorage.removeItem('zancada.guide');}catch(e){} setState(blankState());setDraft(null);setWiz(null);save();closeSheet(true);location.hash='';setLastTab(null);route();break;
     }
   });
 

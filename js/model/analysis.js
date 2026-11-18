@@ -30,7 +30,7 @@ export function analyze(s){
   const planKm=s.type==='test'?5:sn.km||s.km;
   if(km&&s.type!=='runwalk'&&s.type!=='cuestas'&&s.type!=='fartlek'){
     const ratio=km/planKm;
-    add(ratio>=0.9&&ratio<=1.2?true:ratio<0.75?false:'warn','Distancia',`${fk(km)} de ${fk(planKm)} km previstos${ratio<0.9?` (${Math.round((1-ratio)*100)} % menos)`:ratio>1.2?` (${Math.round((ratio-1)*100)} % más)`:''}.`);
+    add(ratio>=0.9&&ratio<=1.2?true:ratio<0.75?false:'warn','Distancia',`${fk(km)} de ${fk(planKm)} km previstos${ratio<0.9?` (${Math.round((1-ratio)*100)} % menos)`:ratio>1.2?` (${Math.round((ratio-1)*100)} % más)`:''}.${ratio>1.5?' Cuenta toda para tu carga y el plan ya lo tiene en cuenta; pero subir tanto de golpe aumenta el riesgo de lesión, así que no lo conviertas en costumbre.':''}`);
   }
   const easyType=['easy','long'].includes(s.type);
   const mains=(sn.main||[]).filter(b=>b.lo);
@@ -109,7 +109,13 @@ export function analyze(s){
   if(r&&r.hr){const pf=perfOf(r);if(pf) add(pf.v>=0.97?true:'warn','Rendimiento',`${Math.round(pf.v*100)} % (${pf.label}): ritmo frente a lo esperado con tu pulso de hoy.`);}
   const act={km:km||s.km,sec:time,hr:s.log.hr,elev:s.log.elev,gap:s.log.gap,rpe:s.log.rpe},lp=loadParts(act,p);
   if(lp.load) notes.unshift(`Carga de la sesión: ${Math.round(lp.load)} (calculada con ${lp.src}).`);
-  const bad=items.filter(x=>x.ok===false).length,warn=items.filter(x=>x.ok==='warn').length;
-  const verdict=bad?['Incompleta','q']:warn?['Cumplida con matices','w']:['Cumplida','ok'];
+  // «Incompleta» solo si de verdad faltó algo (distancia, repeticiones o tiempo). Si hiciste de más o
+  // más rápido, la sesión está hecha: se dice cómo se desvió, sin darla por no hecha.
+  const badI=items.filter(x=>x.ok===false),warn=items.filter(x=>x.ok==='warn').length;
+  const short=badI.some(x=>['Distancia','Repeticiones','Duración'].includes(x.label));
+  const fastI=badI.find(x=>/rápido|rápidas/.test(x.text)),slowI=badI.find(x=>/lent|por debajo de lo previsto/.test(x.text));
+  // [texto, color, etiqueta corta para listas]
+  const verdict=short?['Incompleta','q','Incompleta']:badI.length?(fastI?['Hecha, más rápida de lo previsto','w','Hecha · rápida']:slowI?['Hecha, más lenta de lo previsto','w','Hecha · lenta']:['Hecha, distinta a lo previsto','w','Hecha'])
+    :warn?['Cumplida con matices','w','Hecha']:['Cumplida','ok','Hecha'];
   return {verdict,items,laps,notes,changes:s.log.events||[]};
 }

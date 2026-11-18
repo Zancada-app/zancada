@@ -20,6 +20,7 @@ import { DAYS_L, addDays, clamp, daysBetween, dow, fdShort, monday, today } from
 import { KEY_TYPES, QUALITY, TYPES } from './constants.js';
 import { state } from '../core/store.js';
 import { addEvent } from './adapt.js';
+import { xtHardOn } from './xtrain.js';
 
 export const CYCLE_MODES = {
   natural: 'Ciclo natural',
@@ -81,6 +82,13 @@ export function phaseOf(date) {
   const len = next ? daysBetween(s, next) : L;
   let day = daysBetween(s, date) + 1, projected = false;
   const td = today();
+  // píldora, anillo o parche: ciclos fijos de 28 días que se repiten solos (no hay retrasos)
+  if (c.mode === 'pildora') {
+    const k = Math.floor((day - 1) / 28); if (k > 0 && !next) { s = addDays(s, k * 28); day -= k * 28; projected = date > td; }
+    if (next && day > 28) day = ((day - 1) % 28) + 1;
+    const ph = day <= 21 ? 'activa' : 'descanso';
+    return { day, len: 28, phase: ph, start: s, projected, late: false, inPeriod: ph === 'descanso' };
+  }
   if (!next && date > td && day > len) { // previsión: ciclos siguientes
     if (daysBetween(s, td) + 1 > len + 1) { // ya va con retraso: no se puede prever más allá
       if (day > len + 10) return null;
@@ -89,9 +97,9 @@ export function phaseOf(date) {
     const k = Math.floor((day - 1) / L); s = addDays(s, k * L); day = day - k * L; projected = true;
   }
   const late = !next && !projected && day > len + 1; // el día len+1 es el previsto para la siguiente
+  if (late && day > len + 11) return null; // demasiado tiempo sin registrar: mejor no suponer nada
   let ph;
-  if (c.mode === 'pildora') ph = day <= 21 ? 'activa' : 'descanso';
-  else {
+  {
     const end = c.ends && c.ends[s] ? daysBetween(s, c.ends[s]) + 1 : P;
     const ov = len - 14;
     ph = day <= end ? 'regla' : day < ov - 1 ? 'folicular' : day <= ov + 1 ? 'ovulacion' : day <= len - 5 ? 'lutea' : 'premenstrual';
@@ -104,6 +112,9 @@ export function phaseOf(date) {
 export function nextPeriod(date = today()) {
   const c = cycle(); if (!c || !c.on || c.mode === 'otro') return null;
   const s = startFor(date); if (!s) return null;
+  if (c.mode === 'pildora') { // con píldora: el próximo inicio de la semana de descanso
+    const p = phaseOf(date); let n = addDays(p.start, 21); while (n <= date) n = addDays(n, 28); return n;
+  }
   let n = addDays(s, cycleLen());
   while (n <= date) n = addDays(n, cycleLen());
   return n;
@@ -173,9 +184,9 @@ export function sensitiveDay(date) {
   const c = cycle(); if (!c || !c.on || c.adapt === false) return null;
   const p = phaseOf(date); if (!p) return null;
   if (c.ok && c.ok[date]) return null;
-  if (c.mode === 'pildora') return p.phase === 'descanso' && p.day <= 23 ? 'los primeros días de descanso de la píldora' : null;
+  if (c.mode === 'pildora') return p.phase === 'descanso' && p.day <= 23 ? 'uno de los primeros días de descanso de la píldora' : null;
   if (p.phase === 'regla' && p.day <= 2) return p.day === 1 ? 'el primer día de regla' : 'el segundo día de regla';
-  if (p.phase === 'premenstrual' && p.day >= p.len - 1 && !p.late) return 'los días previos a la regla';
+  if (p.phase === 'premenstrual' && p.day >= p.len - 1 && !p.late) return 'uno de los días previos a la regla';
   const ins = cycleInsights();
   if (ins && ins.ready && ins.phases[p.phase] && ins.phases[p.phase].harder) return `tu ${PHASES[p.phase].n.toLowerCase()}, en la que sueles notar más los entrenos`;
   return null;
@@ -192,11 +203,13 @@ export function cycleSchedule() {
   let changed = false;
   const pend = () => state.sessions.filter(s => s.status === 'pending' && s.date >= td && s.date <= until);
   for (const q of pend()) {
-    if (!HARD(q) || q.manual || q.mod) continue;
+    if (!HARD(q) || q.manual || q.mod || q.date === td) continue; // la de hoy, la decide ella con el aviso de la tarjeta
     const why = sensitiveDay(q.date); if (!why) continue;
     const wk = monday(q.date);
     const others = id => state.sessions.filter(x => x.status !== 'skipped' && x.id !== id && x.id !== q.id && isKey(x));
-    const cand = pend().filter(e => e.type === 'easy' && !e.manual && !e.mod && monday(e.date) === wk && e.date !== q.date && !sensitiveDay(e.date))
+    // nunca a hoy (que no cambie por sorpresa lo que ya tenías pensado) ni junto a un entreno duro de piernas
+    const okDay = d => d > td && !sensitiveDay(d) && !xtHardOn(d) && !xtHardOn(addDays(d, -1));
+    const cand = pend().filter(e => e.type === 'easy' && !e.manual && !e.mod && monday(e.date) === wk && e.date !== q.date && okDay(e.date))
       .filter(e => !others(e.id).some(x => Math.abs(daysBetween(x.date, e.date)) === 1))
       .sort((a, b) => Math.abs(daysBetween(a.date, q.date)) - Math.abs(daysBetween(b.date, q.date)));
     const e = cand[0], from = q.date;
@@ -205,7 +218,7 @@ export function cycleSchedule() {
       const keys = others(null);
       let free = null;
       for (let d = wk, i = 0; i < 7; i++, d = addDays(d, 1)) {
-        if (d <= td || d === q.date || sensitiveDay(d) || state.sessions.some(x => x.date === d && x.status !== 'skipped')) continue;
+        if (d === q.date || !okDay(d) || state.sessions.some(x => x.date === d && x.status !== 'skipped')) continue;
         if (keys.some(x => Math.abs(daysBetween(x.date, d)) === 1)) continue;
         if (!free || Math.abs(daysBetween(d, from)) < Math.abs(daysBetween(free, from))) free = d;
       }
@@ -227,7 +240,7 @@ export function cycleSchedule() {
 /** Nota para una sesión según la fase de ese día (o null). */
 export function cycleNote(s) {
   if (!cycleOn() || s.status !== 'pending') return null;
-  if (s.cyc && !s.cyc.swap) return { k: 'moved', t: `La he puesto hoy en lugar del ${DAYS_L[dow(s.cyc.from)]} ${fdShort(s.cyc.from)}, que es ${s.cyc.why}.` };
+  if (s.cyc && !s.cyc.swap) return { k: 'moved', t: `${s.date === today() ? 'La he puesto hoy' : `La he pasado al ${DAYS_L[dow(s.date)]}`} en lugar del ${DAYS_L[dow(s.cyc.from)]} ${fdShort(s.cyc.from)}, que es ${s.cyc.why}.` };
   const p = phaseOf(s.date); if (!p) return null;
   const hard = HARD(s) || s.type === 'long';
   if (p.phase === 'regla' || p.phase === 'descanso') {

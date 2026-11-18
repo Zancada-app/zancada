@@ -63,7 +63,7 @@ export function askSkip(id){
 }
 
 export function confirmReset(){
-  openSheet(`<div class="stack"><h2>¿Borrar todo?</h2><p class="muted">Se borran el plan, el historial y la conexión con Strava de este móvil. Si no tienes una copia, no se puede recuperar.</p>
+  openSheet(`<div class="stack"><h2>¿Borrar todo?</h2><p class="muted">Se borran el plan, el historial, tus zapatillas, los datos del ciclo y la conexión con Strava de este móvil. Si no tienes una copia, no se puede recuperar.</p>
     <div class="grid2"><button class="ghost" data-act="close">Cancelar</button><button class="primary" data-act="resetYes">Borrar todo</button></div></div>`);
 }
 

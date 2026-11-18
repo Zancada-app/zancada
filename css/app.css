@@ -282,3 +282,5 @@ body.guiding #tabs{display:none}
 #glock{position:fixed;inset:0;z-index:300;background:#000;display:flex;align-items:flex-end;justify-content:center;padding-bottom:calc(env(safe-area-inset-bottom) + 40px);touch-action:none;user-select:none;-webkit-user-select:none}
 #glock p{color:#555;font-size:15px;transition:color .2s}
 #glock.hold p{color:#ccc}
+#glock .gl-info{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#8a8a8a;text-align:center;pointer-events:none}
+#glock .gl-info span{font-size:20px} #glock #gl-left{font-size:76px;line-height:1;color:#b0b0b0} #glock #gl-pace{font-size:34px;color:#8a8a8a} #glock #gl-tot{font-size:16px;color:#5a5a5a}

@@ -46,7 +46,7 @@ export function cycleCard() {
   if (late) sub = `Tu regla se retrasa ${late} día${late > 1 ? 's' : ''}. Los retrasos de unos días son normales; si es habitual o va a más, coméntalo con tu médico.`;
   else if (due) sub = c.mode === 'pildora' ? 'Hoy empieza tu blíster nuevo' : 'Tu regla debería llegar hoy';
   else if (p.inPeriod) sub = `${c.mode === 'pildora' ? 'Semana de descanso' : 'Regla'} · día ${p.day}`;
-  else sub = np ? `Próxima regla hacia el ${DAYS_L[dow(np)]} ${fdShort(np)} (en ${daysBetween(td, np)} días)` : '';
+  else sub = np ? `${c.mode === 'pildora' ? 'Semana de descanso desde el' : 'Próxima regla hacia el'} ${DAYS_L[dow(np)]} ${fdShort(np)} (en ${daysBetween(td, np)} días)` : '';
   const btns = [];
   if (!p.inPeriod || late) btns.push(`<button type="button" class="${late ? 'primary' : 'ghost'}" data-act="cycstart">${c.mode === 'pildora' ? 'Empiezo un blíster hoy' : 'Me ha bajado hoy'}</button>`);
   if (p.inPeriod && c.mode !== 'pildora' && p.day >= 2 && !(c.ends && c.ends[p.start])) btns.push('<button type="button" class="ghost" data-act="cycend">Ya ha terminado</button>');

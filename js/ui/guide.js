@@ -32,7 +32,9 @@ export function openGuideSetup(id) {
     <div><label>¿Dónde corres?</label><div class="seg"><button type="button" data-act="gmode" data-v="gps" aria-pressed="${setupMode === 'gps'}">Al aire libre</button><button type="button" data-act="gmode" data-v="cinta" aria-pressed="${setupMode === 'cinta'}">En cinta</button></div>
       <div class="hint" id="gmodehint">${modeHint()}</div></div>
     <div class="card stack" style="gap:6px;padding:12px"><b class="small">Antes de salir</b>
-      <ul class="steps small"><li>Lleva el móvil con <b>Zancada abierta y la pantalla encendida</b> (en el brazalete o la riñonera). Si el iPhone se bloquea, el GPS y la voz se paran: al volver a la app, sigo donde lo dejaste. Con «Bloquear» la pantalla se queda en negro y no se toca sin querer.</li>
+      <ul class="steps small"><li>Lleva el móvil con <b>Zancada abierta y la pantalla encendida</b> (en el brazalete o la riñonera). Si el iPhone se bloquea, el GPS y la voz se paran: al volver a la app, te digo por dónde vas y sigo.</li>
+      <li>Para que no se bloquee solo: <b>Ajustes › Pantalla y brillo › Bloqueo automático › Nunca</b> (y vuelve a ponerlo al terminar).</li>
+      <li>A los pocos segundos de empezar, la pantalla pasa a <b>modo carrera</b>: negra, con lo justo en gris para mirarla de reojo. Gasta mucha menos batería y no se toca sin querer. Mantén pulsado para volver.</li>
       <li>${guidePrefs().rec === 'app' ? 'Zancada grabará la carrera y la apuntará como hecha.' : 'Sigue grabando con tu reloj: la carrera llegará por Strava como siempre. Yo solo te guío.'}</li>
       <li>Puedes llevar música: al hablar, el iPhone la baja o la pausa un momento, según la app de música.</li></ul></div>
     ${voiceAvailable() ? '' : '<p class="err">Este navegador no tiene voz: verás las indicaciones en pantalla.</p>'}
@@ -88,6 +90,7 @@ export function startGuide(id, resume) {
   renderScreen();
   timer = setInterval(tick, 1000);
   persist();
+  if (!resume) setTimeout(() => { if (G && !G.done && !$('#glock')) guideAction('glock'); }, 8000);
 }
 
 function onPoint(p) {
@@ -104,8 +107,13 @@ function onVis() {
   if (!G || G.done) return;
   if (document.visibilityState === 'hidden') { hiddenAt = now(); return; }
   keepAwake();
-  if (hiddenAt && now() - hiddenAt > 8000) speak('Seguimos.');
+  const away = hiddenAt ? now() - hiddenAt : 0;
   hiddenAt = 0; tick();
+  if (away > 8000 && G && !G.done) {
+    const st = G.steps[G.i], el = elapsed(), sd = distKm() - G.stepStartDist, stepT = el - G.stepStartT;
+    const left = st.dist ? sayDist(Math.max(0.01, st.dist - sd)) : sayTime(Math.max(1, st.dur - stepT));
+    speak(`Seguimos. La pantalla se bloqueó ${sayTime(away / 1000)}. Ahora: ${st.label}, quedan ${left}.`, true);
+  }
 }
 
 function tick() {
@@ -149,12 +157,15 @@ export function guideAction(a) {
     if (b && b.dataset.sure) finishGuide(true);
     else if (b) { b.dataset.sure = '1'; b.textContent = '¿Terminar? Toca otra vez'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Terminar'; } }, 3000); }
   } else if (a === 'glock') {
-    const l = document.createElement('div'); l.id = 'glock'; l.innerHTML = '<p>Mantén pulsado para desbloquear</p>';
+    if ($('#glock')) return;
+    const l = document.createElement('div'); l.id = 'glock';
+    l.innerHTML = '<div class="gl-info"><span id="gl-label"></span><b id="gl-left" class="num"></b><span id="gl-target"></span><b id="gl-pace" class="num"></b><span id="gl-tot" class="num"></span></div><p>Modo carrera · mantén pulsado para volver</p>';
     let tm = null;
     const down = () => { l.classList.add('hold'); tm = setTimeout(() => { l.remove(); }, 900); };
     const up = () => { l.classList.remove('hold'); clearTimeout(tm); };
     l.addEventListener('pointerdown', down); l.addEventListener('pointerup', up); l.addEventListener('pointercancel', up); l.addEventListener('pointerleave', up);
     document.body.appendChild(l);
+    renderLive();
   }
 }
 
@@ -216,6 +227,11 @@ function renderLive() {
   set('g-next', nx ? `Después: ${nx.label}${nx.dist ? ' · ' + sayDist(nx.dist) : nx.dur ? ' · ' + sayTime(nx.dur) : ''}` : 'Es la última parte.');
   set('g-gps', G.mode !== 'gps' ? '' : G.gpsErr ? G.gpsErr : G.gpsAcc == null ? 'GPS: buscando señal…' : G.gpsAcc > 35 ? `GPS: señal débil (±${Math.round(G.gpsAcc)} m)` : `GPS: bien (±${Math.round(G.gpsAcc)} m)`);
   set('gpause', G.pauseAt ? 'Seguir' : 'Pausa');
+  if ($('#glock')) {
+    set('gl-label', G.pauseAt ? 'En pausa' : st.label); set('gl-left', stepAmount(st, sd, stepT)); set('gl-target', target(st, G.mode));
+    const pc = G.mode === 'gps' ? G.track.pace(t) : null; set('gl-pace', pc ? fp(pc) + ' /km' : '');
+    set('gl-tot', `${ft(el)} · ${fk(distKm())} km`);
+  }
 }
 
 function renderSummary(early) {

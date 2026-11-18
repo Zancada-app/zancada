@@ -32,7 +32,7 @@ export function renderPlan(){
       return `<button class="item" data-act="open" data-id="${s.id}">
       <span class="date">${DAYS[dow(s.date)]}<b class="num">${pd(s.date).getDate()}</b></span>
       <span class="grow"><span class="t">${d.title}</span><br><span class="s num">${timeBased?d.dur+' min':fk(s.status==='done'&&s.log&&s.log.km?s.log.km:s.km)+' km'}${s.type!=='cuestas'&&s.type!=='runwalk'?' · '+(s.status==='done'&&s.log&&s.log.km&&s.log.time?fp(s.log.time/s.log.km)+' /km':paceR(d.lo,d.hi)+' /km'):''}${s.moved||s.manual?' · movida':''}</span></span>
-      ${s.status==='done'?`<span class="status d">${a&&a.verdict[1]!=='ok'?a.verdict[0]:'Hecha'}</span>`:s.status==='skipped'?'<span class="status s">Saltada</span>':s.status==='paused'?'<span class="status s">Pausa</span>':s.status==='rested'?'<span class="status s">Descanso</span>':chipFor(s)}
+      ${s.status==='done'?`<span class="status ${a&&a.verdict[1]==='q'?'s':'d'}">${a?a.verdict[2]:'Hecha'}</span>`:s.status==='skipped'?'<span class="status s">Saltada</span>':s.status==='paused'?'<span class="status s">Pausa</span>':s.status==='rested'?'<span class="status s">Descanso</span>':chipFor(s)}
     </button>`;}).map((h,k)=>({date:ss[k].date,html:h})).concat(strRows).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0).map(x=>x.html).join('');
     return `<details class="wk" data-w="${i}" ${(openWeeks?openWeeks.has(i):i===cw)?'open':''}>
       <summary><span class="grow" style="flex:1"><b style="font-family:var(--display);font-size:19px">Semana ${i+1}</b> <span class="small muted">${fdShort(wkS)} – ${fdShort(addDays(wkS,6))}</span><br><span class="small muted">${PHASE_N[c.phase]}${c.down?' · descarga':''}${i===cw?' · esta semana':''}</span></span>
