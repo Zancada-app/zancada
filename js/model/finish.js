@@ -106,7 +106,7 @@ export function finishInfo() {
   const ad = adherence(28);
   const behind = longest < expected * 0.85;
   const prob = longest >= peak * 0.9 ? 'alta' : behind && ad.total >= 3 && ad.ratio < 0.7 ? 'baja' : behind ? 'media' : 'alta';
-  const T = finishTime(pr, p);
+  const T = predictToday(p, g.dist) * (1 + elevPen(pr)); // el mismo «si corrieras hoy» que en Progreso
   return { g, longest, peak, expected, prog: clamp(longest / peak, 0, 1), progExp: clamp(expected / peak, 0, 1), T, pace: T / g.dist,
     track: longest >= peak * 0.95 ? 'preparada' : behind ? 'por detrás' : 'en camino', prob, runWalk: runWalkAdvised(pr, T) };
 }

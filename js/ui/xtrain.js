@@ -119,8 +119,8 @@ export function xtCard() {
   l.forEach(x => { const g = (XT_GROUPS.find(([, ks]) => ks.includes(x.type)) || XT_GROUPS[5])[0]; (by[g] = by[g] || { min: 0, n: 0, load: 0 }); by[g].min += x.min; by[g].n++; by[g].load += xtLoad(x); });
   const tot = l.reduce((t, x) => t + x.min, 0), mx = Math.max(...Object.values(by).map(g => g.min));
   const rows = Object.entries(by).sort((a, b) => b[1].min - a[1].min).map(([g, v]) => `<div class="stack" style="gap:4px;padding:6px 0"><div class="row between small"><span>${g}</span><span class="muted num">${v.n} · ${v.min} min</span></div><div class="bar"><i style="width:${v.min / mx * 100}%"></i></div></div>`).join('');
-  return `<section class="card stack" style="gap:6px"><div class="row between"><h3>Otros entrenos · 4 semanas</h3><button type="button" class="ghost addbtn" data-act="addrun">+ Añadir</button></div>
-    <p class="small muted num">${l.length} entrenos · ${(tot / 60).toFixed(1).replace('.', ',')} h</p>${rows}
+  return `<section class="card stack" style="gap:6px"><div class="row between"><h3>Otros entrenos</h3><button type="button" class="ghost addbtn" data-act="addrun">+ Añadir</button></div>
+    <p class="small muted num">Últimas 4 semanas: ${l.length} ${l.length === 1 ? 'entreno' : 'entrenos'} · ${(tot / 60).toFixed(1).replace('.', ',')} h</p>${rows}
     <p class="small muted">Cuentan para tu carga, tu fatiga y tu forma, pero no para tus ritmos de carrera. Los de fuerza, gimnasio, pilates o barre cubren las sesiones de fuerza del plan.</p></section>`;
 }
 

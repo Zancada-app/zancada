@@ -62,7 +62,9 @@ export function afterSync(){
         if(!manual.log.workPace&&QUALITY.includes(manual.type)) manual.log.workPace=workPaceOf(r);
         r.sessionId=manual.id;matched++;return;
       }
+      // primero la sesión de ese día; si se había recolocado (a mano o sola) y al final se hizo el día original, también es esa
       let cand=state.sessions.filter(x=>open(x)&&x.date===r.date);
+      if(!cand.length) cand=state.sessions.filter(x=>open(x)&&(x.recoveredFrom===r.date||x.moved&&x.from===r.date));
       if(!cand.length) cand=state.sessions.filter(x=>open(x)&&monday(x.date)===monday(r.date)&&Math.abs(daysBetween(x.date,r.date))<=2);
       if(!cand.length){r.extra=true;return;}
       cand.sort((a,b)=>(a.date===r.date?0:1)-(b.date===r.date?0:1)||Math.abs(a.km-r.km)-Math.abs(b.km-r.km));
@@ -122,7 +124,10 @@ export function loadSeries(){
   const days=Object.keys(by).sort();
   if(!days.length) return [];
   const kC=1-Math.exp(-1/42),kA=1-Math.exp(-1/7);
-  let ctl=0,atl=0;const out=[];
+  // sin historial previo, CTL/ATL no empiezan en cero: se parte de los km semanales que dijo que hacía
+  // (si no, las primeras semanas cualquier entreno parecería una carga excesiva)
+  const pr=state.profile,seed=pr&&pr.weeklyKm?pr.weeklyKm*loadOf({km:1,sec:p*1.3},p)/7:0;
+  let ctl=seed,atl=seed;const out=[];
   for(let d=days[0];d<=today();d=addDays(d,1)){
     const l=by[d]||0;ctl+=(l-ctl)*kC;atl+=(l-atl)*kA;
     out.push({date:d,ctl,atl,tsb:ctl-atl,load:l});

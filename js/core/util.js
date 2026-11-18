@@ -64,3 +64,9 @@ export const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 
 // Modificadores para que otros módulos puedan reasignar este estado compartido.
 export function setTodayOverride(v){TODAY_OVERRIDE=v;}
+
+/** Tiempo redondeado al minuto para estimaciones: «2 h 05 min», «52 min». */
+export function fHM(sec){
+  const m=Math.round(sec/60),h=Math.floor(m/60),mm=m%60;
+  return h?`${h} h ${String(mm).padStart(2,'0')} min`:`${mm} min`;
+}

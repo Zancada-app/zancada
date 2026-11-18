@@ -43,7 +43,7 @@ export function cycleCard() {
   const ses = state.sessions.find(s => s.date === td && s.status === 'pending');
   const hardToday = ses && (QUALITY.includes(ses.type) || ses.type === 'long') && ses.type !== 'race' && !ses.mod && p.inPeriod && p.day <= 2 && !(c.ok && c.ok[td]);
   let sub;
-  if (late) sub = `Tu regla se retrasa ${late} día${late > 1 ? 's' : ''}. Los retrasos de unos días son normales; si es habitual o va a más, coméntalo con tu médico.`;
+  if (late) sub = `Tu regla se retrasa ${late} día${late > 1 ? 's' : ''}.${late >= 7 ? ' Los retrasos de unos días son normales; si es habitual o va a más, coméntalo con tu médico.' : ' Unos días de diferencia son normales.'}`;
   else if (due) sub = c.mode === 'pildora' ? 'Hoy empieza tu blíster nuevo' : 'Tu regla debería llegar hoy';
   else if (p.inPeriod) sub = `${c.mode === 'pildora' ? 'Semana de descanso' : 'Regla'} · día ${p.day}`;
   else sub = np ? `${c.mode === 'pildora' ? 'Semana de descanso desde el' : 'Próxima regla hacia el'} ${DAYS_L[dow(np)]} ${fdShort(np)} (en ${daysBetween(td, np)} días)` : '';
@@ -76,7 +76,9 @@ export function cycleSection() {
   const auto = c.mode === 'natural' && cycleLen() !== (c.len || 28);
   const rows = [['Situación', CYCLE_MODES[c.mode]]];
   if (c.mode === 'natural') rows.push(['Duración del ciclo', `${cycleLen()} días${auto ? ' (según tu historial)' : ''}`], ['Regla', `${periodLen()} días`]);
-  if (np && c.mode !== 'otro') rows.push([c.mode === 'pildora' ? 'Próximo descanso' : 'Próxima regla', fdLong(np)]);
+  const lt = p && p.late ? p.day - p.len - 1 : 0;
+  if (lt) rows.push(['Próxima regla', `prevista el ${fdLong(addDays(p.start, p.len))} (se retrasa ${lt} día${lt > 1 ? 's' : ''})`]);
+  else if (np && c.mode !== 'otro') rows.push([c.mode === 'pildora' ? 'Próximo descanso' : 'Próxima regla', fdLong(np)]);
   if (c.mode !== 'otro') rows.push(['Adaptar el plan a las fases', c.adapt === false ? 'No' : 'Sí']);
   const starts = [...c.starts].reverse().slice(0, 6);
   return `<section class="card stack"><div class="row between"><h3>Ciclo menstrual</h3><button type="button" class="ghost addbtn" data-act="cycopen">Editar</button></div>

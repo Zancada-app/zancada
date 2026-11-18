@@ -1,7 +1,7 @@
 /**
  * Tarjetas reutilizables: objetivo, marcas, análisis, resumen semanal, pausa y zapatillas.
  */
-import { DAYS, addDays, clamp, daysBetween, dow, esc, fdShort, fk, fm, fp, ft, monday, pd, today } from '../core/util.js';
+import { DAYS, addDays, clamp, daysBetween, dow, esc, fdShort, fk, fm, fp, ft, monday, pd, today, fHM } from '../core/util.js';
 import { KEY_TYPES, PHASE_N, TYPES } from '../model/constants.js';
 import { state } from '../core/store.js';
 import { describe } from '../model/workouts.js';
@@ -45,7 +45,7 @@ function finishCard(){
     <div class="row between"><span class="eyebrow">Objetivo · terminar ${what}${pr.first?' (la primera)':''}</span><span class="chip ${cls}">${fi.track[0].toUpperCase()+fi.track.slice(1)}</span></div>
     <div class="bar" style="height:10px;position:relative" role="img" aria-label="Tirada más larga: ${fk(fi.longest)} de ${fk(fi.peak)} km"><i style="width:${fi.prog*100}%"></i><span style="position:absolute;top:-3px;left:calc(${fi.progExp*100}% - 1px);width:2px;height:16px;background:var(--ink)"></span></div>
     <div class="row between small"><span class="muted">Tu tirada más larga</span><b class="num">${fk(fi.longest)} de ${fk(fi.peak)} km</b></div>
-    <div class="row between small"><span class="muted">Tiempo estimado hoy</span><b class="num">unos ${ft(fi.T)}</b></div>
+    <div class="row between small"><span class="muted">Si corrieras hoy</span><b class="num">unos ${fHM(fi.T)}</b></div>
     <div class="row between small"><span class="muted">Ritmo para salir</span><b class="num">${fp(fi.pace*1.03)} /km</b></div>
     <p class="small muted">Probabilidad de terminarla: ${fi.prob}. La raya negra marca dónde deberías estar a estas alturas.${fi.runWalk?' Te recomiendo correr y andar desde el principio el día de la carrera.':''}</p></section>`;
 }

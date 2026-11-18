@@ -15,6 +15,7 @@ import { barChart, formChart, lineChart } from '../charts.js';
 import { MAN_TYPES } from './manual.js';
 import { cycleInsightCard } from '../cycle.js';
 import { xtCard, xtRecent, xtRow } from '../xtrain.js';
+import { elevPen } from '../../model/elevation.js';
 
 export function racePrediction(){
   const pr=state.profile,g=GOALS[pr.goal];
@@ -31,7 +32,8 @@ export function racePrediction(){
   if(h.length>=2&&daysBetween(h[0].date,today())>=21){const wk=daysBetween(h[0].date,today())/7;rate=clamp((h[0].p-p)/h[0].p/wk,0,0.006);}
   const wks=daysBetween(today(),race.date)/7;
   const pf=p*(1-Math.min(0.05,rate*wks));
-  const T=d=>d*5*Math.pow(g.dist/5,1.06)/5;
+  // misma estimación que el resto de la app (con resistencia en media/maratón y desnivel de la carrera)
+  const T=pp=>predictToday(pp/5,g.dist)*(1+elevPen(pr));
   return `<div class="card stack" style="gap:6px;background:var(--bg)"><span class="eyebrow">${g.name} · ${fdShort(race.date)}</span>
     <div class="row between"><span>Si corrieras hoy</span><b class="num" style="font-family:var(--display);font-size:22px">${ft(T(p*5))}</b></div>
     <div class="row between"><span>Previsión para el día de la carrera</span><b class="num" style="font-family:var(--display);font-size:22px;color:var(--accent)">${ft(T(pf*5))}</b></div>

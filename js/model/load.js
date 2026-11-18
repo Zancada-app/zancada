@@ -1,7 +1,7 @@
 /**
  * Carga de entrenamiento (TRIMP/rTSS/sRPE), CTL/ATL, distribución de intensidad y predicción.
  */
-import { addDays, clamp, today } from '../core/util.js';
+import { addDays, clamp, daysBetween, today } from '../core/util.js';
 import { state } from '../core/store.js';
 import { describe, hrBounds } from './workouts.js';
 import { lthrNow } from './heartrate.js';
@@ -57,7 +57,12 @@ export function plannedLoad(s,p){
 export function impactInfo(){
   const td=today(),acts=activities().filter(a=>a.date<=td);
   const sum=(from,to)=>acts.filter(a=>a.date>=from&&a.date<=to).reduce((t,a)=>t+loadParts(a,state.fitness.p).impact,0)+xtIn(from,to).reduce((t,x)=>t+xtImpact(x),0);
-  const w=sum(addDays(td,-6),td),avg=sum(addDays(td,-34),addDays(td,-7))/4;
+  // media de las semanas anteriores con datos (si hay menos de dos semanas de historial, no se compara)
+  const first=[...acts.map(a=>a.date),...xtIn('0000-01-01',td).map(x=>x.date)].sort()[0];
+  if(!first) return null;
+  const weeks=Math.min(4,Math.floor(daysBetween(first,addDays(td,-7))/7)+1);
+  if(weeks<2) return null;
+  const w=sum(addDays(td,-6),td),avg=sum(addDays(td,-6-7*weeks),addDays(td,-7))/weeks;
   return avg>5?{w,avg,ratio:w/avg}:null;
 }
 

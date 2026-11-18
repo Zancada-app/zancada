@@ -1,7 +1,7 @@
 /**
  * Asistente de configuración (8 pasos) y vista previa del plan.
  */
-import { DAYS, DAYS_L, addDays, daysBetween, dow, esc, fdLong, fdShort, fk, ft, monday, parseTime, pd, today } from '../../core/util.js';
+import { DAYS, DAYS_L, addDays, daysBetween, dow, esc, fdLong, fdShort, fk, ft, monday, parseTime, pd, today, fHM } from '../../core/util.js';
 import { GOALS, LEVELS } from '../../model/constants.js';
 import { save, setState, state, stravaOn } from '../../core/store.js';
 import { ageAdj, ageNote } from '../../model/plan.js';
@@ -18,6 +18,7 @@ import { prefillFromStrava, stravaPrefillCard, stravaSection } from './perfil.js
 import { toast } from '../toast.js';
 import { closeSheet, lastTab, openSheet, route, setLastTab } from '../router.js';
 import { finishEval, finishTime, isFinish, needsLongPlan } from '../../model/finish.js';
+import { predictToday } from '../../model/load.js';
 
 export function draftP(d){
   if(state.fitness&&state.profile) {const bm=bestMark({marks:marksFromDraft(d)});return bm&&bm.src==='manual'&&bm.p<state.fitness.p*0.97?bm.p:state.fitness.p;}
@@ -54,8 +55,8 @@ const the=g=>g.dist>40?'la maratón':g.dist>20?'la media maratón':`los ${g.name
 /** Texto de viabilidad para terminar (o para una primera media/maratón): tirada larga y semanas. */
 export function finishText(pr,p,weeks){
   const g=GOALS[pr.goal],E=finishEval(pr,p,weeks);
-  const T=finishTime(pr,p);
-  let t=`${isFinish(pr)?`Hoy terminarías ${the(g)} en unos <b class="num">${ft(T)}</b> (con margen de prudencia).`:''}`;
+  const T=predictToday(p,g.dist)*(1+elevPen(pr));
+  let t=`${isFinish(pr)?`Hoy terminarías ${the(g)} en unos <b class="num">${fHM(T)}</b>.`:''}`;
   if(!E) return t+(isFinish(pr)?' El plan te prepara para llegar a meta entera.':'');
   t+=` La tirada larga irá de ${fk(E.L0)} a <b class="num">${fk(E.status==='corto'||E.status==='insuficiente'?E.reach:E.peak)} km</b>.`;
   t+=' '+({

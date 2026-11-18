@@ -73,10 +73,10 @@ export function renderHoy(){
     ${feelCard}
     ${recoverCard()}
     ${checkinCard()}
-    ${cycleCard()}
     ${main}
     ${(x=>x?`<div class="list card" style="padding:0 14px">${strengthRow(x)}</div>`:'')(strengthToday())}
     ${(l=>l.length?`<div class="list card" style="padding:0 14px">${l.map(xtRow).join('')}</div>`:'')(xtIn(td,td))}
+    ${cycleCard()}
     ${shoeAlertCard()}
     ${summaryCard(true)}
     ${goalCard()}
