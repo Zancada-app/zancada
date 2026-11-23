@@ -14,6 +14,7 @@ import { strengthRow } from '../strength.js';
 import { chipFor } from './hoy.js';
 import { xtIn } from '../../model/xtrain.js';
 import { xtRow } from '../xtrain.js';
+import { isCinta } from '../../model/treadmill.js';
 
 // semanas desplegadas en Plan: se recuerdan mientras usas la app
 export let openWeeks=null;
@@ -31,7 +32,7 @@ export function renderPlan(){
       const timeBased=['runwalk','fartlek','cuestas'].includes(s.type);
       return `<button class="item" data-act="open" data-id="${s.id}">
       <span class="date">${DAYS[dow(s.date)]}<b class="num">${pd(s.date).getDate()}</b></span>
-      <span class="grow"><span class="t">${d.title}</span><br><span class="s num">${timeBased?d.dur+' min':fk(s.status==='done'&&s.log&&s.log.km?s.log.km:s.km)+' km'}${s.type!=='cuestas'&&s.type!=='runwalk'?' · '+(s.status==='done'&&s.log&&s.log.km&&s.log.time?fp(s.log.time/s.log.km)+' /km':paceR(d.lo,d.hi)+' /km'):''}${s.moved||s.manual?' · movida':''}</span></span>
+      <span class="grow"><span class="t">${d.title}${isCinta(s)?' <span class="src">cinta</span>':''}</span><br><span class="s num">${timeBased?d.dur+' min':fk(s.status==='done'&&s.log&&s.log.km?s.log.km:s.km)+' km'}${s.type!=='cuestas'&&s.type!=='runwalk'?' · '+(s.status==='done'&&s.log&&s.log.km&&s.log.time?fp(s.log.time/s.log.km)+' /km':paceR(d.lo,d.hi)+' /km'):''}${s.moved||s.manual?' · movida':''}</span></span>
       ${s.status==='done'?`<span class="status ${a&&a.verdict[1]==='q'?'s':'d'}">${a?a.verdict[2]:'Hecha'}</span>`:s.status==='skipped'?`<span class="status s">${s.replaced?'Sustituida':s.recoveredFrom?'Saltada':canRecover(s)?'Recuperable':'Saltada'}</span>`:s.status==='paused'?'<span class="status s">Pausa</span>':s.status==='rested'?'<span class="status s">Descanso</span>':chipFor(s)}
     </button>`;}).map((h,k)=>({date:ss[k].date,html:h})).concat(strRows).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0).map(x=>x.html).join('');
     return `<details class="wk" data-w="${i}" ${(openWeeks?openWeeks.has(i):i===cw)?'open':''}>

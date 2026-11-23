@@ -70,6 +70,10 @@ export function bindEvents(){
       case 'wconfirm': wizConfirm();break;
       // sesiones
       case 'open': openSession(id);break;
+      case 'where':{const s=state.sessions.find(x=>x.id===id);if(!s)break;
+        if(t.dataset.v==='cinta')s.where='cinta';else delete s.where;save();
+        if(t.closest('.sheet'))openSession(id);else route();
+        toast(t.dataset.v==='cinta'?'Sesión adaptada a la cinta.':'Sesión para hacer fuera.');break;}
       case 'norecover':{const s=state.sessions.find(x=>x.id===id);if(s){const snap=JSON.stringify(state);s.noRecover=true;save();route();toast('De acuerdo, la dejamos pasar.',{undo:snap});}break;}
       case 'log': openLog(id);break;
       case 'logsave': submitLog($('#logf'));break;

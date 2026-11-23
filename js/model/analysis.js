@@ -109,6 +109,9 @@ export function analyze(s){
   if(r&&r.hr){const pf=perfOf(r);if(pf) add(pf.v>=0.97?true:'warn','Rendimiento',`${Math.round(pf.v*100)} % (${pf.label}): ritmo frente a lo esperado con tu pulso de hoy.`);}
   const act={km:km||s.km,sec:time,hr:s.log.hr,elev:s.log.elev,gap:s.log.gap,rpe:s.log.rpe},lp=loadParts(act,p);
   if(lp.load) notes.unshift(`Carga de la sesión: ${Math.round(lp.load)} (calculada con ${lp.src}).`);
+  // en cinta el reloj mide peor el ritmo (y la velocidad de la cinta varía): no se da por fallido solo por ritmo
+  const indoor=(r&&r.indoor)||s.where==='cinta';
+  if(indoor) items.forEach(x=>{if(x.ok===false&&/itmo|rápid|lent/i.test(x.label+' '+x.text)&&!['Distancia','Repeticiones','Duración'].includes(x.label)){x.ok='warn';x.text+=' En cinta el reloj mide peor el ritmo: tómalo como orientación.';}});
   // «Incompleta» solo si de verdad faltó algo (distancia, repeticiones o tiempo). Si hiciste de más o
   // más rápido, la sesión está hecha: se dice cómo se desvió, sin darla por no hecha.
   const badI=items.filter(x=>x.ok===false),warn=items.filter(x=>x.ok==='warn').length;

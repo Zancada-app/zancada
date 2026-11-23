@@ -85,7 +85,7 @@ export function stepIntro(steps, i, mode) {
     parts.push(t + '.');
     if (st.kind !== 'strides' && st.text && st.reps <= 1 && st.text.length < 70) parts.push(st.text);
   }
-  if (i === 0) parts.unshift('Empezamos.');
+  if (i === 0) parts.unshift(mode === 'cinta' ? 'Empezamos. Pon la cinta al 1 por ciento de inclinación.' : 'Empezamos.');
   return parts.join(' ');
 }
 

@@ -59,9 +59,16 @@ export function bestMark(pr){
   return best;
 }
 
+/** Opción de «¿cuándo fue?» que corresponde a una fecha. */
+export const markAgeOpt=date=>{const ago=date?daysBetween(date,today()):90;return (AGE_OPTS.find(([v])=>ago<=v*1.5)||AGE_OPTS[4])[0];};
+
 export function marksFromDraft(d){
-  const out=[];
-  MARK_D.forEach(([dist],i)=>{const t=parseTime(d['mt'+i]);if(t){out.push({d:dist,t,date:addDays(today(),-(+d['ma'+i]||90))});}});
+  const out=[],prev=(state&&state.profile&&state.profile.marks)||[];
+  MARK_D.forEach(([dist],i)=>{const t=parseTime(d['mt'+i]);if(!t) return;
+    const age=+d['ma'+i]||90;
+    // si la marca no ha cambiado, conserva su fecha real (si no, cada edición del perfil la «movería»)
+    const same=prev.find(x=>Math.abs(x.d-dist)<0.01&&x.t===t&&markAgeOpt(x.date)===age);
+    out.push({d:dist,t,date:same?same.date:addDays(today(),-age)});});
   return out;
 }
 

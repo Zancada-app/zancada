@@ -25,6 +25,7 @@ import { cycleCard, cycleNoteHTML } from '../cycle.js';
 import { xtIn } from '../../model/xtrain.js';
 import { xtRow, xtWeekText } from '../xtrain.js';
 import { guideButton, resumeCard } from '../guide.js';
+import { cintaAllowed, describeCinta, isCinta } from '../../model/treadmill.js';
 
 export function chipFor(s){const t=TYPES[s.type];return `<span class="chip ${t.c}">${t.k}</span>`;}
 
@@ -86,16 +87,17 @@ export function renderHoy(){
 
 /* ---------- Plan ---------- */
 export function sessionCard(s,isToday){
-  const d=describe(s),st=s.status,td=today();
+  const d=isCinta(s)?describeCinta(s):describe(s),st=s.status,td=today();
   const showLog=st==='pending'&&s.date<=td&&!state.pause;
   const timeBased=['runwalk','fartlek','cuestas'].includes(s.type);
-  const head=`<div class="row between"><span class="eyebrow">${isToday?'Hoy':fdLong(s.date)}${s.cyc&&!s.cyc.swap?' · movida por tu ciclo':s.moved||s.manual?' · cambiada de día':''}${s.converted?' · ajustada':''}</span>${chipFor(s)}</div>
+  const head=`<div class="row between"><span class="eyebrow">${isToday?'Hoy':fdLong(s.date)}${s.cyc&&!s.cyc.swap?' · movida por tu ciclo':s.moved||s.manual?' · cambiada de día':''}${isCinta(s)?' · en cinta':''}${s.converted?' · ajustada':''}</span>${chipFor(s)}</div>
     <h2>${d.title}</h2>
     <div class="row" style="gap:20px;align-items:flex-end">
       <div><span class="big num">${timeBased?d.dur:fk(s.km)}</span><span class="unit">${timeBased?'min':'km'}</span></div>
       <div class="small muted num" style="padding-bottom:4px">${timeBased?`≈ ${fk(d.estKm)} km`:`≈ ${d.dur} min`}<br>esfuerzo ${d.rpe}/10</div>
     </div>${d.wx&&st==='pending'?`<span class="small muted">${Math.round(d.wx.t)} °C a tu hora${d.wx.adj>0?` · ritmos +${(d.wx.adj*100).toFixed(1).replace('.',',')} % por calor`:''}</span>`:''}${s.mod&&st==='pending'?`<span class="chip w" style="align-self:flex-start">Ajustada: ${MOD_N[s.mod.kind]}</span>`:''}`;
-  const plan=`${blocksHTML(d)}${d.tips.length?`<ul class="steps small">${d.tips.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}`;
+  const whereSel=st==='pending'&&cintaAllowed(s)?`<div class="row between" style="gap:10px;align-items:center"><span class="small muted">¿Dónde?</span><div class="seg" style="flex:1"><button type="button" data-act="where" data-id="${s.id}" data-v="fuera" aria-pressed="${!isCinta(s)}">Al aire libre</button><button type="button" data-act="where" data-id="${s.id}" data-v="cinta" aria-pressed="${isCinta(s)}">En cinta</button></div></div>`:'';
+  const plan=`${whereSel}${blocksHTML(d)}${d.tips.length?`<ul class="steps small">${d.tips.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}`;
   let body='';
   if(st==='done'){
     body=`<div class="stack" style="gap:6px"><div class="row between"><span class="chip ok">Hecha${s.log.strava?' · Strava':''}</span><span class="small muted num">${s.log.km?fk(s.log.km)+' km':''}${s.log.time?' · '+ft(s.log.time):''}${s.log.km&&s.log.time?' · '+fp(s.log.time/s.log.km)+' /km':''}</span></div>

@@ -6,7 +6,7 @@ import { GOALS, LEVELS } from '../../model/constants.js';
 import { save, setState, state, stravaOn } from '../../core/store.js';
 import { ageAdj, ageNote } from '../../model/plan.js';
 import { describe } from '../../model/workouts.js';
-import { AGE_OPTS, MARK_D, PR_NAME, allMarks, bestMark, fdMark, markName, marksFromDraft, stravaPRs } from '../../model/marks.js';
+import { AGE_OPTS, MARK_D, PR_NAME, allMarks, bestMark, fdMark, markName, marksFromDraft, stravaPRs, markAgeOpt } from '../../model/marks.js';
 import { ELEV, elevName, elevPen } from '../../model/elevation.js';
 import { TARGET_PH, goalEval, raceTime } from '../../model/goal.js';
 import { createPlan } from '../../model/adapt.js';
@@ -93,7 +93,7 @@ export function defaultDraft(){
 export function draftFromProfile(p){
   const d={...defaultDraft(),...p,hasDate:!!p.raceDate,raceDate:p.raceDate||'',targetTime:p.targetTime?ft(p.targetTime):'',aim:p.targetTime||!GOALS[p.goal].dist?'time':'finish',first:!!p.first,raceElev:p.raceElev||2,maxMin:p.maxMin||'',hills:p.hills!==false,hrMax:p.hrMax||'',age:p.age||'',days:[...p.days]};
   let marks=p.marks||[];if(!marks.length&&p.refDist&&p.refTime) marks=[{d:p.refDist,t:p.refTime,date:addDays(today(),-30)}];
-  MARK_D.forEach(([dist],i)=>{const m=marks.find(x=>Math.abs(x.d-dist)<0.01);if(m){d['mt'+i]=ft(m.t);const ago=m.date?daysBetween(m.date,today()):90;d['ma'+i]=(AGE_OPTS.find(([v])=>ago<=v*1.5)||AGE_OPTS[4])[0];}});
+  MARK_D.forEach(([dist],i)=>{const m=marks.find(x=>Math.abs(x.d-dist)<0.01);if(m){d['mt'+i]=ft(m.t);d['ma'+i]=markAgeOpt(m.date);}});
   return d;
 }
 
@@ -285,6 +285,10 @@ export function wizSave(){
   const key=wiz.key,err=validateStep(key);
   if(err){$('#err').textContent=err;return;}
   const pr=profileFromDraft();
+  // sin cambios: no hace falta recalcular nada
+  const keep=draft;draft=draftFromProfile(state.profile);const base=profileFromDraft();draft=keep; // el perfil actual, pasado por el mismo formulario
+  const same=Object.keys(pr).every(k=>JSON.stringify(pr[k]??null)===JSON.stringify(base[k]??null));
+  if(same){wiz=null;draft=null;setLastTab(null);route();toast('Sin cambios.');return;}
   if(key==='you'&&ageAdj(pr).band===ageAdj(state.profile).band){
     const cityChanged=JSON.stringify(pr.city)!==JSON.stringify(state.profile.city)||pr.runHour!==state.profile.runHour;
     Object.assign(state.profile,{name:pr.name,hrMax:pr.hrMax,age:pr.age,hrRest:pr.hrRest,city:pr.city,runHour:pr.runHour,strength:pr.strength});

@@ -25,6 +25,7 @@ let timer = null, gpsOff = null, hiddenAt = 0;
 /* ---------- preparación ---------- */
 export function openGuideSetup(id) {
   const s = state.sessions.find(x => x.id === id); if (!s) return;
+  setupMode = s.where === 'cinta' ? 'cinta' : 'gps';
   const d = describe(s);
   const stepsG = buildSteps(s, 'gps'), nWork = stepsG.filter(x => x.kind === 'main' && x.reps > 1).length;
   openSheet(`<div class="stack" id="gsetup"><span class="eyebrow">Entreno guiado</span><h2>${esc(d.title)}</h2>
@@ -71,6 +72,7 @@ function distKm() {
 export function startGuide(id, resume) {
   const s = state.sessions.find(x => x.id === id); if (!s) return;
   const mode = resume ? resume.mode : setupMode;
+  if (!resume) { if (mode === 'cinta') s.where = 'cinta'; else delete s.where; save(); }
   const steps = buildSteps(s, mode);
   if (!steps.length) { toast('Esta sesión no tiene partes que guiar.'); return; }
   G = { sid: id, mode, steps, i: 0, t0: now(), pausedMs: 0, pauseAt: null, stepStartT: 0, stepStartDist: 0, cintaKm: 0,

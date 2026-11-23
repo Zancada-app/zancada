@@ -53,6 +53,9 @@ export function createPlan(pr,keep){
   state.sessions=old?state.sessions.filter(s=>s.status!=='pending'):[];
   state.plan.curve.forEach((_,i)=>state.sessions.push(...buildWeek(i)));
   sortSessions();
+  // la carrera queda en su fecha: si luego se cambia otro dato del perfil, no se desplaza «N semanas desde hoy»
+  const raceS=state.sessions.find(s=>s.type==='race');
+  if(raceS&&!pr.raceDate) pr.raceDate=raceS.date;
   const g=GOALS[pr.goal];
   addEvent('info',old?`Plan recalculado: ${state.plan.curve.length} semanas hacia ${g.name.toLowerCase()}. Tu historial se mantiene.`
     :`Plan creado: ${state.plan.curve.length} semanas, ${pr.days.length} días por semana, objetivo ${g.name.toLowerCase()}. Ritmo de referencia: ${fp(p)} /km en 5 km.`);

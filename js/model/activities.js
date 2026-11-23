@@ -76,6 +76,7 @@ export function afterSync(){
       x.status='pending';
       if(x.date!==r.date){x.plannedDate=x.date;x.date=r.date;}
       r.sessionId=x.id;matched++;names.push(TYPES[x.type].n.toLowerCase());
+      if(r.indoor&&!x.where) x.where='cinta'; // hecha en cinta (según Strava)
       logDone(x,runLog(r,x));
     });
     sortSessions();

@@ -12,6 +12,7 @@ import { autoAssignShoes, syncStravaShoes } from '../model/shoes.js';
 import { archiveMark, markP, summaryMark } from '../model/marks.js';
 import { mergeStravaXt, xtFromStrava } from '../model/xtrain.js';
 import { rpeFromHR } from '../model/activities.js';
+import { isIndoorRun } from '../model/treadmill.js';
 
 /* =========================================================
    Strava
@@ -99,7 +100,7 @@ export async function uploadGpx(gpx,name){
 export function toRun(a){
   return {id:a.id,date:String(a.start_date_local).slice(0,10),name:String(a.name||'').slice(0,80),km:(a.distance||0)/1000,sec:a.moving_time||a.elapsed_time||0,
     hr:a.average_heartrate||null,hrMax:a.max_heartrate||null,elev:Math.round(a.total_elevation_gain||0),rpe:a.perceived_exertion||null,
-    race:a.workout_type===1,type:a.sport_type||a.type,gear:a.gear_id||null,detail:false,be:[],laps:[],splits:[],sessionId:null,extra:false};
+    race:a.workout_type===1,type:a.sport_type||a.type,gear:a.gear_id||null,indoor:isIndoorRun(a),detail:false,be:[],laps:[],splits:[],sessionId:null,extra:false};
 }
 
 export function addDetail(r,a){
