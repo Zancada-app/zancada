@@ -10,11 +10,16 @@ import { loadOf } from './load.js';
 import { goalCheck } from './goal.js';
 import { addEvent, logDone, regenerate, setFitness, setLoad, sortSessions } from './adapt.js';
 import { xtByDate } from './xtrain.js';
+import { easyByHR } from './easyhr.js';
+import { fp } from '../core/util.js';
 
 export const BE_NAMES={'1k':'1 km','1 mile':'1 milla','2 mile':'2 millas','5k':'5 km','10k':'10 km','15k':'15 km','10 mile':'10 millas','20k':'20 km','Half-Marathon':'media maratón','30k':'30 km','Marathon':'maratón'};
 
 /* ---------- análisis de cada carrera ---------- */
-export const hrMaxNow=()=>{const pr=state.profile||{},s=state.strava||{},H=state.hrm||{};return pr.hrMax||s.hrMaxUser||H.max||s.hrMax||(pr.age?Math.round(208-0.7*pr.age):null);};
+// La más alta medida solo puede quedarse corta (si nunca has ido a tope): nunca por debajo de la estimada por edad
+export const hrMaxAge=()=>{const pr=state.profile||{};return pr.age?Math.round(208-0.7*pr.age):null;};
+export const hrMaxNow=()=>{const pr=state.profile||{},s=state.strava||{},H=state.hrm||{},meas=H.max||s.hrMax||null,est=hrMaxAge();
+  return pr.hrMax||s.hrMaxUser||(meas&&est?Math.max(meas,est):meas||est);};
 
 export function rpeFromHR(hr){
   if(!hr) return null;
@@ -83,6 +88,7 @@ export function afterSync(){
   }
   let fit=state.fitness?fitnessFromEfforts():null;
   if(state.adapt){updateHR();if(fitnessFromHR())fit=true;}
+  if(state.adapt&&state.fitness) easyHRNotice();
   const fat=state.plan?checkFatigue():null;
   if(state.plan) goalCheck();
   return {matched,names,fit,fat};
@@ -165,4 +171,14 @@ export function stravaSummary(){
   const longest=rec.slice().sort((a,b)=>b.km-a.km)[0];
   const best=bestImplied(42)||bestImplied(120);
   return {km,perWeek,days:rec.length?days:null,longDay:longest?dow(longest.date):null,best,n:s.runs.length};
+}
+
+// Aviso cuando el ritmo suave pasa a mandarlo el pulso (o cambia bastante)
+function easyHRNotice(){
+  const p=state.fitness.p,H=state.hrm=state.hrm||{lthr:null,date:null,label:null,max:null,hist:[]};
+  const h=easyByHR({lo:p*1.25,hi:p*1.40}),now=h?Math.round(h.lo):null,prev=H.easyHR||null;
+  if(now===prev||(now&&prev&&Math.abs(now-prev)<8)) return;
+  H.easyHR=now;
+  if(now) addEvent('info',`En tus rodajes, a tu ritmo suave el pulso se te va por encima de Z2 (${h.hr.top} ppm). Pongo los rodajes y las tiradas a ${fp(h.lo)}–${fp(h.hi)} /km para que vayas en Z2; lo recalculo con cada rodaje.`);
+  else if(prev) addEvent('info','Tu pulso en los rodajes ya va en Z2 al ritmo suave del plan: vuelvo a ese ritmo.');
 }

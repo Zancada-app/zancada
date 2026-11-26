@@ -10,8 +10,13 @@ import { goalInfo, racePaceNow, raceTime, trainP } from './goal.js';
 import { hrMaxNow } from './activities.js';
 import { finishTime, isFinish, runWalkAdvised } from './finish.js';
 import { predictToday } from './load.js';
+import { easyByHR } from './easyhr.js';
 
 /* ---------- descripción de cada sesión con ritmos actuales ---------- */
+function hrEasyTip(h,E0){
+  return `Ritmo ajustado a tu pulso: en tus últimos rodajes, a ${fp(E0.lo)}–${fp(E0.hi)} /km ya pasabas de Z2 (${h.hr.top} ppm).`+
+    (h.capped?' Si aun así se te dispara, alterna correr y andar (por ejemplo 4 minutos y 1): es lo que antes mejora tu base.':'');
+}
 /* ---------- Zonas de pulso ---------- */
 export const HR_Z=[{n:1,name:'Recuperación',lo:0,hi:0.70},{n:2,name:'Suave',lo:0.70,hi:0.80},{n:3,name:'Moderado',lo:0.80,hi:0.87},{n:4,name:'Umbral',lo:0.87,hi:0.93},{n:5,name:'Máximo',lo:0.93,hi:1}];
 
@@ -44,8 +49,11 @@ export function describe(s){
   const p=state.fitness.p,pr=state.profile,g=GOALS[pr.goal],it=state.adapt.intensity;
   const qf=1-it*0.01,km=s.budget||s.km;
   const pq=state.plan?trainP():p, rpN=state.plan?racePaceNow():{pace:p*g.rf,goal:false};
-  const E={lo:p*1.25,hi:p*1.40};             // suave (equivale al ritmo E de Daniels)
-  const WU={lo:p*1.30,hi:p*1.45};            // calentar / enfriar
+  let E={lo:p*1.25,hi:p*1.40};               // suave (equivale al ritmo E de Daniels)
+  let WU={lo:p*1.30,hi:p*1.45};              // calentar / enfriar
+  // si con el ritmo suave del plan tu pulso ya sale de Z2, en los días suaves manda el pulso
+  const byHR=easyByHR(E),E0=E;
+  if(byHR){E={lo:byHR.lo,hi:byHR.hi};WU={lo:Math.max(WU.lo,E.lo),hi:Math.max(WU.hi,E.hi*1.04)};}
   const r={title:TYPES[s.type].n,rpe:3,lo:E.lo,hi:E.hi,pf:1.32,blocks:[],tips:[],dur:null};
   const B=(o)=>r.blocks.push(o);
   const cal=(d,extra)=>B({k:'cal',t:'Calentamiento',dist:d,lo:WU.lo,hi:WU.hi,z:[1,2],text:extra||''});
@@ -55,6 +63,7 @@ export function describe(s){
       B({k:'main',t:'Rodaje',dist:km,lo:E.lo,hi:E.hi,z:[2,2],text:'Ritmo de conversación.'});
       if(s.strides) B({k:'strides',t:'Rectas',reps:6,dist:0.08,lo:p*0.92,hi:p*0.97,z:null,rec:'vuelta andando',text:'Rápidas pero relajadas, sin apretar los dientes.'});
       r.tips.push('Si el pulso sube de Z2, baja el ritmo aunque parezca muy lento.');
+      if(byHR) r.tips.unshift(hrEasyTip(byHR,E0));
       break;
     case 'long':{
       Object.assign(r,{rpe:5,hi:p*1.40,pf:1.32});
@@ -69,6 +78,7 @@ export function describe(s){
         if(state.plan.finish&&state.plan.finish.runWalk) r.tips.push('Puedes hacerla corriendo y andando (por ejemplo, 4 minutos corriendo y 1 andando) desde el principio: es la misma estrategia que te recomiendo para la carrera.');
       }
       r.tips.push('Importa el tiempo en pie, no la velocidad.');
+      if(byHR) r.tips.unshift(hrEasyTip(byHR,E0));
       break;}
     case 'series':{
       const pf=g.spf*qf,reps=clamp(Math.round((km-3.5)/(g.rep+g.rec))+it,3,12),pace=pq*pf;
