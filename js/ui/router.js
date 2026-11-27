@@ -9,6 +9,7 @@ import { renderProgreso } from './screens/progreso.js';
 import { renderZonas } from './screens/zonas.js';
 import { renderSetup, renderWizard, wiz } from './screens/wizard.js';
 import { renderPerfil } from './screens/perfil.js';
+import { legalOk, renderLegalGate } from './legal.js';
 
 /* ---------- Navegación: transición suave, scroll conservado ---------- */
 export let lastTab=null;
@@ -16,6 +17,7 @@ export let lastTab=null;
 export function route(){
   const h=(location.hash||'').slice(1);
   const tabs=$('#tabs');
+  if(!legalOk()){renderLegalGate();lastTab=null;return;}
   if(!state.profile){renderSetup();return;}
   if(wiz&&wiz.mode==='edit'){renderWizard();return;}
   tabs.hidden=false;

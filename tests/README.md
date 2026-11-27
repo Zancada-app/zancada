@@ -12,6 +12,9 @@ node tests/cycle.test.cjs    # ciclo: fases, previsión, sesiones movidas, apren
 node tests/strava-marks.test.cjs  # mejores marcas desde todo el historial de Strava
 node tests/recover.test.cjs  # recuperar sesiones perdidas en la semana
 node tests/profile.test.cjs  # editar el perfil sin mover la carrera ni perder la forma
+node tests/treadmill.test.cjs  # sesiones en cinta: km/h, inclinación, cuestas, Strava
+node tests/easyhr.test.cjs  # ritmo suave según el pulso (Z2 real)
+node tests/legal.test.cjs   # condiciones y privacidad: sin aceptar no se usa
 node tests/check-sw.cjs      # el service worker incluye todos los archivos
 node tests/check-layers.cjs  # model/ no depende de la pantalla ni de la red
 node --expose-internals tests/check-imports.cjs  # ningún módulo usa algo sin importarlo

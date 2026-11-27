@@ -3,7 +3,7 @@
  */
 import { addDays, daysBetween, esc, fdLong, monday, today } from '../core/util.js';
 import { GOALS } from '../model/constants.js';
-import { blankState, save, setState, state, sv } from '../core/store.js';
+import { blankState, save, setState, state, stravaOn, sv } from '../core/store.js';
 import { ageNote } from '../model/plan.js';
 import { applyMod, chkRows, doNot100 } from '../model/readiness.js';
 import { createPlan, rateSession, skip } from '../model/adapt.js';
@@ -22,18 +22,19 @@ import { draft, draftFromProfile, goalHint, markHint, readDraftInputs, renderWiz
 import { doSync } from './screens/perfil.js';
 import { addDraft, openAddRun, openManual, readAddRun, renderAddRun, saveAddRun, unlogSession } from './screens/manual.js';
 import { toast, undoLast } from './toast.js';
-import { closeSheet, lastTab, route, setLastTab } from './router.js';
+import { closeSheet, lastTab, openSheet, route, setLastTab } from './router.js';
 import { askSkip, confirmReset, openLog, submitLog } from './actions.js';
 import { applyShoeSet, openShoe, pickShoeKind, saveShoe, shoeAction, touchShoeLimit } from './shoes.js';
 import { cycleAction } from './cycle.js';
 import { delXt, openAddChooser, openXtForm, saveXt, xtSet } from './xtrain.js';
 import { closeGuide, discardGuide, guideAction, guidePref, openGuideSetup, pickGuideRpe, resumeGuide, saveGuided, setGuideMode, startGuide, testVoice } from './guide.js';
+import { acceptLegal, legalCheck, legalSheetHTML, revokeLegal } from './legal.js';
 
 /* ---------- Eventos ---------- */
 export let lastAct={a:null,t:0},geoResults=[];
 
 // solo se protegen del doble toque las acciones que confirman o cambian de pantalla; las de elegir opciones van sin freno
-export const GUARDED=new Set(['gstart','gsave','gskip','gopen','xtsave','xtdel','cycsave','cycstart','cycend','cycok','cycdel','cycadd','cycoff2','shoesave','shoeretire','shoeunretire','shoedel','shoeswap','shoeack','shoeopen','wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
+export const GUARDED=new Set(['legalok','gstart','gsave','gskip','gopen','xtsave','xtdel','cycsave','cycstart','cycend','cycok','cycdel','cycadd','cycoff2','shoesave','shoeretire','shoeunretire','shoedel','shoeswap','shoeack','shoeopen','wnext','wback','wsave','wconfirm','logsave','addsave','skipYes','applymod','n100','resume','pausego','sync','move','strdone','newblock','resetYes','undo','unlog','mandel','addrun','log','open','skip','pause','n100open','stropen','wedit','wgo']);
 
 /** Registra los manejadores globales (delegación de eventos). Se llama una vez desde main.js. */
 export function bindEvents(){
@@ -156,6 +157,13 @@ export function bindEvents(){
         stravaExchange(c).then(()=>{toast('Strava conectado. Importando carreras…');return doSync(false);}).catch(e=>toast(e.message));break;}
       case 'copycode':{const c=$('#thecode').textContent;(navigator.clipboard?navigator.clipboard.writeText(c):Promise.reject()).then(()=>toast('Código copiado.')).catch(()=>toast('Mantén pulsado el código para copiarlo.'));break;}
       case 'resetAsk': confirmReset();break;
+      case 'legalchk': legalCheck();break;
+      case 'legal': openSheet(legalSheetHTML(t.dataset.v));break;
+      case 'legalok': if(!legalCheck())break; if(!acceptLegal()){toast('No se pudo guardar la aceptación: revisa que el navegador permita guardar datos.');break;}
+        setLastTab(null);location.hash=location.hash||'';afterLegal();break;
+      case 'legalRevoke': openSheet(`<div class="stack"><h2>¿Retirar tu aceptación?</h2><p class="muted">No podrás usar Zancada hasta que vuelvas a aceptar las condiciones. Tus datos siguen en este móvil: si quieres borrarlos, usa «Borrar todo y empezar de cero».</p>
+        <div class="grid2"><button class="ghost" data-act="close">Cancelar</button><button class="primary" data-act="legalRevokeYes">Retirar</button></div></div>`);break;
+      case 'legalRevokeYes': revokeLegal();closeSheet(true);setLastTab(null);route();break;
       case 'resetYes': try{localStorage.removeItem('zancada.guide');}catch(e){} setState(blankState());setDraft(null);setWiz(null);save();closeSheet(true);location.hash='';setLastTab(null);route();break;
     }
   });
@@ -200,4 +208,10 @@ export function bindEvents(){
   });
 
   document.addEventListener('submit',e=>e.preventDefault());
+}
+
+// tras aceptar: arrancar como al abrir la app (incluida la sincronización si toca)
+function afterLegal(){
+  route();
+  if(stravaOn()&&Date.now()-sv().lastSync>20*60000) doSync(false);
 }

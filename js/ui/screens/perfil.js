@@ -12,6 +12,7 @@ import { toast } from '../toast.js';
 import { route } from '../router.js';
 import { cycleSection } from '../cycle.js';
 import { guideSection } from '../guide.js';
+import { legalSection } from '../legal.js';
 
 /* ---------- Perfil ---------- */
 export function renderPerfil(){
@@ -26,6 +27,7 @@ export function renderPerfil(){
       <p class="hint">La copia incluye la conexión con Strava: no la compartas.</p>
       <input type="file" id="f-file" accept="application/json,.json" hidden>
       <button type="button" class="danger" data-act="resetAsk">Borrar todo y empezar de cero</button></section>
+    ${legalSection()}
     <p class="small muted" style="text-align:center">Zancada · tus datos solo están en este móvil</p></div>`;
 }
 

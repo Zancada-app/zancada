@@ -10,6 +10,7 @@ import { toast } from './ui/toast.js';
 import { closeSheet, route } from './ui/router.js';
 import { bindEvents } from './ui/events.js';
 import { cycleSchedule } from './model/cycle.js';
+import { legalOk } from './ui/legal.js';
 
 onSaveError(toast);
 bindEvents();
@@ -20,7 +21,7 @@ window.addEventListener('hashchange',route);
 let shownDay=null;
 
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState!=='visible'||!state) return;
+  if(document.visibilityState!=='visible'||!state||!legalOk()) return;
   if(stravaOn()&&Date.now()-sv().lastSync>20*60000){doSync(false);shownDay=today();return;}
   if(shownDay&&shownDay!==today()&&state.profile&&state.plan){if(processMissed()|cycleSchedule())save();route();}
   shownDay=today();
@@ -33,6 +34,7 @@ function boot(){
   if(!state){try{setState(JSON.parse(localStorage.getItem(LS))||blankState());}catch(e){setState(blankState());}}
   shownDay=today();
   closeSheet();
+  if(!legalOk()){route();return;} // sin aceptar las condiciones no se usa nada (ni se sincroniza)
   const qp=new URLSearchParams(location.search);
   if(qp.get('state')==='zancada'&&(qp.has('code')||qp.has('error'))){
     history.replaceState(null,'',location.pathname+location.hash);

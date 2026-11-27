@@ -20,7 +20,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.split('?')[0] in ('/', '/index.html'):
             html = open(os.path.join(ROOT, 'index.html'), encoding='utf-8').read().replace(
                 '<script type="module" src="js/main.js">',
-                '<script type="module" src="tests/e2e/debug.js"></script><script type="module" src="js/main.js">')
+                '<script>if(!localStorage.getItem(\'zancada.legal\'))localStorage.setItem(\'zancada.legal\',\'{"v":1,"at":"2026-11-27T10:00:00Z"}\')</script><script type="module" src="tests/e2e/debug.js"></script><script type="module" src="js/main.js">')
             body = html.encode()
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')

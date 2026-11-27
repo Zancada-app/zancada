@@ -18,7 +18,9 @@ function installDom() {
     createElement: () => fakeEl(), documentElement: fakeEl(), body: fakeEl(), visibilityState: 'visible' };
   global.location = { hash: '', search: '', origin: 'https://example.github.io', pathname: '/zancada/', protocol: 'https:' };
   global.history = { replaceState() {} };
-  global.localStorage = { getItem: () => null, setItem() {} };
+  // las condiciones ya aceptadas (versión 1) salvo que el test diga otra cosa
+  const ls = { 'zancada.legal': JSON.stringify({ v: 1, at: '2026-11-27T10:00:00Z' }) };
+  global.localStorage = { getItem: k => (k in ls ? ls[k] : null), setItem(k, v) { if (k !== 'zancada.v1') ls[k] = String(v); }, removeItem(k) { delete ls[k]; } };
   Object.defineProperty(global, 'navigator', { value: {}, configurable: true, writable: true });
   global.matchMedia = () => ({ matches: true });
   global.scrollTo = () => {};

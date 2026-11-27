@@ -284,3 +284,17 @@ body.guiding #tabs{display:none}
 #glock.hold p{color:#ccc}
 #glock .gl-info{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#8a8a8a;text-align:center;pointer-events:none}
 #glock .gl-info span{font-size:20px} #glock #gl-left{font-size:76px;line-height:1;color:#b0b0b0} #glock #gl-pace{font-size:34px;color:#8a8a8a} #glock #gl-tot{font-size:16px;color:#5a5a5a}
+/* condiciones y privacidad */
+.legal{font-size:.95rem;line-height:1.5}
+.legal h3{font-size:1rem;margin:16px 0 4px}
+.legal p,.legal ul{margin:0 0 8px}
+.legal ul,.legal-sum{padding-left:20px;display:grid;gap:6px}
+.legal a{color:var(--accent)}
+.legal-doc summary{cursor:pointer;min-height:28px;display:flex;align-items:center}
+.legal-doc[open] summary{margin-bottom:6px}
+.legal-chk{display:flex;gap:10px;align-items:flex-start;line-height:1.4;cursor:pointer}
+.legal-chk input{width:22px;height:22px;flex:0 0 22px;margin:1px 0 0;accent-color:var(--accent)}
+.legal-doc summary{list-style:none;justify-content:space-between}
+.legal-doc summary::-webkit-details-marker{display:none}
+.legal-doc summary::after{content:'›';font-size:1.4rem;line-height:1;color:var(--muted,#888);transform:rotate(90deg);transition:transform .2s}
+.legal-doc[open] summary::after{transform:rotate(-90deg)}
