@@ -1,23 +1,32 @@
+# Publica la app en Cloudflare Pages en cada cambio de la rama main.
+# Si se sube un .zip con la app (desde el móvil o la tablet), lo descomprime,
+# sustituye los archivos y lo guarda en el repositorio antes de publicar.
+# Necesita dos secretos del repositorio: CLOUDFLARE_API_TOKEN y CLOUDFLARE_ACCOUNT_ID.
+# Mientras dura la mudanza también publica en GitHub Pages (si sigue activo).
 name: Publicar
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: write
   pages: write
   id-token: write
+
 concurrency:
-  group: pages
+  group: publicar
   cancel-in-progress: false
+
 jobs:
   publicar:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Descomprimir el zip subido (si hay)
         run: |
           ZIP=$(ls *.zip 2>/dev/null | head -n1 || true)
@@ -34,14 +43,38 @@ jobs:
           git add -A
           git commit -m "Actualizar la app desde $ZIP"
           git push
+
       - name: Comprobar la app
         run: |
           node tests/check-sw.cjs
           node tests/engine.test.cjs > /tmp/engine.log || { tail -40 /tmp/engine.log; exit 1; }
           head -1 /tmp/engine.log
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+
+      - name: Preparar solo los archivos de la app
+        run: |
+          mkdir _site
+          rsync -a --exclude .git --exclude .github --exclude tests --exclude '*.md' --exclude '*.zip' \
+            --exclude proxy-cloudflare-worker.js --exclude _site ./ _site/
+          # que no salga en buscadores
+          printf '/*\n  X-Robots-Tag: noindex, nofollow\n' > _site/_headers
+          ls _site
+
+      - name: Publicar en Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
         with:
-          path: .
-      - id: deploy
-        uses: actions/deploy-pages@v4
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          preCommands: wrangler pages project create zancada --production-branch=main || true
+          command: pages deploy _site --project-name=zancada --branch=main --commit-dirty=true
+
+      # --- GitHub Pages (solo durante la mudanza; si ya no está activo, se salta sin error) ---
+      - uses: actions/configure-pages@v5
+        continue-on-error: true
+        id: ghp
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.ghp.outcome == 'success'
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        if: steps.ghp.outcome == 'success'
+        continue-on-error: true
