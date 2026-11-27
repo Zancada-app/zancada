@@ -15,7 +15,7 @@ export function legalOk() { const l = legalInfo(); return !!(l && l.v === LEGAL_
 export function acceptLegal() { try { localStorage.setItem(LEGAL_KEY, JSON.stringify({ v: LEGAL_V, at: new Date().toISOString() })); return true; } catch (e) { return false; } }
 export function revokeLegal() { try { localStorage.removeItem(LEGAL_KEY); } catch (e) {} }
 
-export const CONTACT = 'zancada.run.app@gmail.com';
+export const CONTACT = 'zancada.app.run@gmail.com';
 const mail = `<a href="mailto:${CONTACT}">${CONTACT}</a>`;
 const ext = (u, t) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`;
 
